@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タスクブックマーク</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>タスクブックマーク</h1>
+    </header>
+    
+    <main>
+      <div id="auth-section">
+        <div id="auth-status" class="status">
+          <p>認証状態を確認中...</p>
+        </div>
+        <button id="auth-button" class="button primary" style="display: none;">
+          認証する
+        </button>
+        <button id="logout-button" class="button secondary" style="display: none;">
+          ログアウト
+        </button>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="sidepanel.ts"></script>
+</body>
+</html>
