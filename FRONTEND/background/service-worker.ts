@@ -119,6 +119,50 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           }
           break;
 
+        case 'GET_WORK_STATE_EVENTS':
+          try {
+            const { startDate, endDate } = message.payload as { startDate: string; endDate: string };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // 仕事状態を取得
+            const workStates = await calendarEventService.getWorkStateEvents(
+              new Date(startDate),
+              new Date(endDate),
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            // UI用にフォーマット（新しい順にソート）
+            const sortedWorkStates = workStates.sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
+
+            sendResponse({ 
+              success: true, 
+              workStates: sortedWorkStates.map(ws => ({
+                eventId: ws.eventId.value,
+                title: ws.title.value,
+                startTime: ws.startTime.toISOString(),
+                endTime: ws.endTime.toISOString(),
+                tabCount: ws.metadata?.tabs.length || 0,
+                favicons: ws.metadata?.tabs.slice(0, 5).map(tab => tab.faviconUrl).filter((url): url is string => url !== undefined) || [],
+                memo: ws.metadata?.memo,
+                isCorrupted: ws.isCorrupted,
+              }))
+            });
+          } catch (error) {
+            logger.error('Failed to get work state events', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }

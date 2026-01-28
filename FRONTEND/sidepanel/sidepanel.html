@@ -50,6 +50,29 @@
       <div id="message-section" style="display: none;">
         <div id="message" class="message"></div>
       </div>
+
+      <div id="work-states-section" style="display: none;">
+        <h2>保存済み仕事</h2>
+        <div id="work-states-controls" class="work-states-controls">
+          <div class="search-group">
+            <input type="text" id="work-states-search" class="search-input" placeholder="仕事名で検索...">
+          </div>
+          <div class="filter-group">
+            <button class="filter-button" data-filter="today">今日</button>
+            <button class="filter-button" data-filter="thisWeek">今週</button>
+            <button class="filter-button" data-filter="thisMonth">今月</button>
+            <button class="filter-button active" data-filter="all">すべて</button>
+          </div>
+        </div>
+        <div id="work-states-loading" class="loading" style="display: none;">
+          <p>読み込み中...</p>
+        </div>
+        <div id="work-states-error" class="error-message" style="display: none;">
+          <p id="work-states-error-text"></p>
+          <button id="work-states-retry-button" class="button secondary">再試行</button>
+        </div>
+        <div id="work-states-list" class="work-states-list"></div>
+      </div>
     </main>
   </div>
   <script type="module" src="sidepanel.ts"></script>
