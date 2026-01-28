@@ -106,6 +106,7 @@ describe('RestoreService', () => {
       expect(tabRestoreManager.restoreTabsInOrder).toHaveBeenCalledWith(remainingTabs, window.id, undefined);
       expect(calendarEventService.recordRestore).toHaveBeenCalledWith(
         eventId,
+        expect.objectContaining({ value: expect.stringMatching(/^restored-\d+-\d+$/) }), // restoredToEventId
         expect.any(Date),
         calendarId,
         accessToken

@@ -199,7 +199,9 @@ GoogleカレンダーのWebUIやその他カレンダーツールによって、
 - `memo?: string` - 作業メモ（任意）
 - `savedAt: string` - 保存日時（ISO 8601形式）
 - `restoredFrom?: string` - 復元元のイベントID（任意）
-- `restoredTo?: string[]` - 復元先のイベントIDリスト（任意）
+- `restoredTo?: RestoredToEntry[]` - 復元先の情報リスト（任意、オブジェクト配列）
+  - `RestoredToEntry.eventId: string` - 復元先のイベントID
+  - `RestoredToEntry.restoredAt: string` - 復元日時（ISO 8601形式）
 - `extensions?: Record<string, unknown>` - 拡張フィールド（将来のバージョンで追加される可能性のあるフィールド）
 
 #### 不変性
@@ -210,7 +212,8 @@ GoogleカレンダーのWebUIやその他カレンダーツールによって、
 - `version`は有効なスキーマバージョンである必要がある
 - `tabs`は少なくとも1つのタブを含む必要がある（正常な状態）
 - `savedAt`は有効なISO 8601形式である必要がある
-- `restoredFrom`と`restoredTo`は有効なイベントID形式である必要がある
+- `restoredFrom`は有効なイベントID形式である必要がある
+- `restoredTo`の各エントリは有効な`eventId`と`restoredAt`を含む必要がある
 - `extensions`は任意の構造を持つことができる（将来の拡張用）
 
 #### ファクトリメソッド

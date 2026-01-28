@@ -76,8 +76,12 @@ export class RestoreService {
     }
 
     // 4. 復元メタデータを記録
+    // 復元先のイベントIDを生成（ウィンドウIDとタイムスタンプを使用）
+    // 注: 現在の実装では復元時に新しいカレンダーイベントを作成しないため、一時的なIDを生成
+    // Bolt 7以降で、復元時に新しいイベントを作成する機能を追加する予定
     const restoredAt = new Date();
-    await this.calendarEventService.recordRestore(eventId, restoredAt, calendarId, accessToken);
+    const restoredToEventId = EventId.create(`restored-${window.id}-${restoredAt.getTime()}`);
+    await this.calendarEventService.recordRestore(eventId, restoredToEventId, restoredAt, calendarId, accessToken);
 
     return {
       windowId: window.id,

@@ -2,6 +2,15 @@ import { SchemaVersion } from './schema-version';
 import { TabInfo } from './tab-info';
 
 /**
+ * RestoredToEntry
+ * 復元先の情報を表すインターフェース
+ */
+export interface RestoredToEntry {
+  eventId: string;      // 復元先のイベントID
+  restoredAt: string;   // 復元日時（ISO 8601形式）
+}
+
+/**
  * WorkStateMetadata Value Object
  * 仕事状態のメタデータを表す不変オブジェクト
  * スキーマバージョニングと拡張性をサポート
@@ -13,7 +22,7 @@ export class WorkStateMetadata {
     private readonly _savedAt: string,
     private readonly _memo?: string,
     private readonly _restoredFrom?: string,
-    private readonly _restoredTo?: string[],
+    private readonly _restoredTo?: RestoredToEntry[],
     private readonly _extensions?: Record<string, unknown>
   ) {
     // バリデーション: 正常な状態ではtabsは少なくとも1つのタブを含む必要がある
@@ -97,7 +106,28 @@ export class WorkStateMetadata {
     const savedAt = raw.savedAt as string;
     const memo = raw.memo as string | undefined;
     const restoredFrom = raw.restoredFrom as string | undefined;
-    const restoredTo = raw.restoredTo as string[] | undefined;
+    
+    // restoredToの変換（後方互換性のため、文字列配列とオブジェクト配列の両方をサポート）
+    let restoredTo: RestoredToEntry[] | undefined;
+    if (raw.restoredTo && Array.isArray(raw.restoredTo)) {
+      restoredTo = (raw.restoredTo as unknown[]).map((entry) => {
+        if (typeof entry === 'string') {
+          // 後方互換性: 旧形式（文字列）の場合は復元日時として扱う
+          return {
+            eventId: '', // 旧形式ではイベントIDがないため空文字
+            restoredAt: entry,
+          };
+        } else if (typeof entry === 'object' && entry !== null) {
+          // 新形式: オブジェクト
+          const obj = entry as Record<string, unknown>;
+          return {
+            eventId: (obj.eventId as string) || '',
+            restoredAt: (obj.restoredAt as string) || '',
+          };
+        }
+        return { eventId: '', restoredAt: '' };
+      });
+    }
 
     // 未知のフィールドをextensionsに格納（前方互換性のため）
     const knownFields = ['version', 'tabs', 'memo', 'savedAt', 'restoredFrom', 'restoredTo', 'extensions'];
@@ -155,10 +185,11 @@ export class WorkStateMetadata {
   }
 
   /**
-   * 復元先のイベントIDリストを取得
+   * 復元先の情報リストを取得
+   * 各エントリには復元先のイベントIDと復元日時が含まれる
    */
-  get restoredTo(): string[] | undefined {
-    return this._restoredTo ? [...this._restoredTo] : undefined; // イミュータビリティのためコピーを返す
+  get restoredTo(): RestoredToEntry[] | undefined {
+    return this._restoredTo ? this._restoredTo.map((entry) => ({ ...entry })) : undefined; // イミュータビリティのためコピーを返す
   }
 
   /**

@@ -138,8 +138,9 @@ export class WorkState {
   /**
    * 復元関係を記録（この仕事状態から別の仕事状態への復元）
    * @param restoredToEventId 復元先のイベントID
+   * @param restoredAt 復元日時
    */
-  recordRestoreRelation(restoredToEventId: EventId): void {
+  recordRestoreRelation(restoredToEventId: EventId, restoredAt: Date): void {
     if (!restoredToEventId) {
       throw new Error('WorkState restoredToEventId cannot be null');
     }
@@ -148,8 +149,18 @@ export class WorkState {
     }
 
     const currentRestoredTo = this._metadata.restoredTo || [];
-    if (!currentRestoredTo.includes(restoredToEventId.value)) {
-      const newRestoredTo = [...currentRestoredTo, restoredToEventId.value];
+    // 同じイベントIDが既に存在するかチェック
+    const alreadyExists = currentRestoredTo.some(
+      (entry) => entry.eventId === restoredToEventId.value
+    );
+    if (!alreadyExists) {
+      const newRestoredTo = [
+        ...currentRestoredTo,
+        {
+          eventId: restoredToEventId.value,
+          restoredAt: restoredAt.toISOString(),
+        },
+      ];
       // メタデータを更新（イミュータビリティのため新しいインスタンスを作成）
       const updatedMetadata = WorkStateMetadata.createFromRaw(
         {

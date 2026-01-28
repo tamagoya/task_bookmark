@@ -171,13 +171,15 @@ export class CalendarEventService {
 
   /**
    * 復元メタデータを記録
-   * @param eventId イベントID
+   * @param eventId 復元元のイベントID
+   * @param restoredToEventId 復元先のイベントID（新しく作成されたWorkStateのID）
    * @param restoredAt 復元日時
    * @param calendarId カレンダーID
    * @param accessToken アクセストークン
    */
   async recordRestore(
     eventId: EventId,
+    restoredToEventId: EventId,
     restoredAt: Date,
     calendarId: CalendarId,
     accessToken: AccessToken
@@ -197,10 +199,16 @@ export class CalendarEventService {
       throw new Error(`WorkState metadata not found: ${eventId.value}`);
     }
 
-    // restoredToに復元日時を追加（イミュータビリティのため新しいメタデータを作成）
+    // restoredToに新しい復元情報を追加（イミュータビリティのため新しいメタデータを作成）
     const existingMetadata = existingWorkState.metadata;
     const existingRestoredTo = existingMetadata.restoredTo || [];
-    const updatedRestoredTo = [...existingRestoredTo, restoredAt.toISOString()];
+    const updatedRestoredTo = [
+      ...existingRestoredTo,
+      {
+        eventId: restoredToEventId.value,
+        restoredAt: restoredAt.toISOString(),
+      },
+    ];
 
     // 新しいメタデータを作成（createFromRawを使用）
     const updatedMetadata = WorkStateMetadata.createFromRaw(
