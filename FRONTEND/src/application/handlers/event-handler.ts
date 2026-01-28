@@ -3,6 +3,11 @@ import { TokenRefreshed } from '../../domain/events/token-refreshed';
 import { AuthenticationFailed } from '../../domain/events/authentication-failed';
 import { UserLoggedOut } from '../../domain/events/user-logged-out';
 import { CalendarInitialized } from '../../domain/events/calendar-initialized';
+import { TaskBookmarkCreated } from '../../domain/events/task-bookmark-created';
+import { TaskBookmarkUpdated } from '../../domain/events/task-bookmark-updated';
+import { TaskBookmarkDeleted } from '../../domain/events/task-bookmark-deleted';
+import { TaskBookmarkCorrupted } from '../../domain/events/task-bookmark-corrupted';
+import { RestoreRelationRecorded } from '../../domain/events/restore-relation-recorded';
 import { UIMessenger } from '../../infrastructure/adapters/ui-messenger';
 import { Logger } from '../../infrastructure/adapters/logger';
 
@@ -84,5 +89,88 @@ export class EventHandler {
         initializedAt: event.initializedAt,
       },
     });
+  }
+
+  /**
+   * TaskBookmarkCreatedイベントを処理
+   * @param event イベント
+   */
+  async handleTaskBookmarkCreated(event: TaskBookmarkCreated): Promise<void> {
+    this.logger.info(`Task bookmark created: ${event.eventId}`);
+    await this.uiMessenger.sendMessage({
+      type: 'TASK_BOOKMARK_CREATED',
+      payload: {
+        eventId: event.eventId,
+        title: event.title,
+        createdAt: event.createdAt,
+      },
+    });
+  }
+
+  /**
+   * TaskBookmarkUpdatedイベントを処理
+   * @param event イベント
+   */
+  async handleTaskBookmarkUpdated(event: TaskBookmarkUpdated): Promise<void> {
+    this.logger.info(`Task bookmark updated: ${event.eventId}, fields: ${event.updatedFields.join(', ')}`);
+    await this.uiMessenger.sendMessage({
+      type: 'TASK_BOOKMARK_UPDATED',
+      payload: {
+        eventId: event.eventId,
+        updatedFields: event.updatedFields,
+        updatedAt: event.updatedAt,
+      },
+    });
+  }
+
+  /**
+   * TaskBookmarkDeletedイベントを処理
+   * @param event イベント
+   */
+  async handleTaskBookmarkDeleted(event: TaskBookmarkDeleted): Promise<void> {
+    this.logger.info(`Task bookmark deleted: ${event.eventId}`);
+    await this.uiMessenger.sendMessage({
+      type: 'TASK_BOOKMARK_DELETED',
+      payload: {
+        eventId: event.eventId,
+        deletedAt: event.deletedAt,
+      },
+    });
+  }
+
+  /**
+   * TaskBookmarkCorruptedイベントを処理
+   * @param event イベント
+   */
+  async handleTaskBookmarkCorrupted(event: TaskBookmarkCorrupted): Promise<void> {
+    this.logger.error(
+      `Task bookmark corrupted: ${event.eventId}, errors: ${event.errors.map((e) => e.errorMessage).join(', ')}`
+    );
+    await this.uiMessenger.sendMessage({
+      type: 'TASK_BOOKMARK_CORRUPTED',
+      payload: {
+        eventId: event.eventId,
+        errors: event.errors.map((e) => ({
+          field: e.field,
+          errorCode: e.errorCode,
+          errorMessage: e.errorMessage,
+          severity: e.severity,
+          recoverable: e.recoverable,
+        })),
+        detectedAt: event.detectedAt,
+        canPartiallyLoad: event.canPartiallyLoad,
+      },
+    });
+  }
+
+  /**
+   * RestoreRelationRecordedイベントを処理
+   * @param event イベント
+   */
+  async handleRestoreRelationRecorded(event: RestoreRelationRecorded): Promise<void> {
+    this.logger.info(
+      `Restore relation recorded: from ${event.fromEventId} to ${event.toEventId}`
+    );
+    // UIへの通知は不要（バックグラウンド処理）
   }
 }

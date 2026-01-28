@@ -223,4 +223,259 @@ describe('GoogleCalendarAdapter', () => {
       expect(result.value).toBe('calendar-id-12345');
     });
   });
+
+  describe('createEvent', () => {
+    it('正常にイベントを作成できる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const accessToken = 'test-access-token';
+      const event = {
+        summary: 'テストイベント',
+        description: '{}',
+        start: { dateTime: '2026-01-21T10:00:00Z' },
+        end: { dateTime: '2026-01-21T11:00:00Z' },
+      };
+      const createdEvent = { id: 'event-id-12345', ...event };
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue(createdEvent),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      const result = await adapter.createEvent(calendarId, event, accessToken);
+
+      expect(result).toBe('event-id-12345');
+      expect(mockRetryHandler.executeWithRetry).toHaveBeenCalled();
+    });
+
+    it('エラーが発生した場合はエラーを投げる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const accessToken = 'test-access-token';
+      const event = {
+        summary: 'テストイベント',
+        description: '{}',
+        start: { dateTime: '2026-01-21T10:00:00Z' },
+        end: { dateTime: '2026-01-21T11:00:00Z' },
+      };
+      const mockResponse = {
+        ok: false,
+        status: 400,
+        text: jest.fn().mockResolvedValue('Bad Request'),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await expect(adapter.createEvent(calendarId, event, accessToken)).rejects.toThrow('Failed to create event');
+    });
+  });
+
+  describe('getEvent', () => {
+    it('正常にイベントを取得できる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const mockEvent = {
+        id: eventId,
+        summary: 'テストイベント',
+        description: '{}',
+        start: { dateTime: '2026-01-21T10:00:00Z' },
+        end: { dateTime: '2026-01-21T11:00:00Z' },
+      };
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockEvent),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      const result = await adapter.getEvent(calendarId, eventId, accessToken);
+
+      expect(result).toEqual(mockEvent);
+      expect(mockRetryHandler.executeWithRetry).toHaveBeenCalled();
+    });
+
+    it('イベントが見つからない場合はエラーを投げる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const mockResponse = {
+        ok: false,
+        status: 404,
+        text: jest.fn().mockResolvedValue('Not Found'),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await expect(adapter.getEvent(calendarId, eventId, accessToken)).rejects.toThrow('Event not found');
+    });
+  });
+
+  describe('listEvents', () => {
+    it('正常にイベント一覧を取得できる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const startDate = new Date('2026-01-01');
+      const endDate = new Date('2026-01-31');
+      const accessToken = 'test-access-token';
+      const mockEvents = [
+        { id: 'event-1', summary: 'イベント1' },
+        { id: 'event-2', summary: 'イベント2' },
+      ];
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({ items: mockEvents }),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      const result = await adapter.listEvents(calendarId, startDate, endDate, accessToken);
+
+      expect(result).toEqual(mockEvents);
+      expect(mockRetryHandler.executeWithRetry).toHaveBeenCalled();
+    });
+
+    it('itemsが存在しない場合は空配列を返す', async () => {
+      const calendarId = 'calendar-id-12345';
+      const startDate = new Date('2026-01-01');
+      const endDate = new Date('2026-01-31');
+      const accessToken = 'test-access-token';
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({}),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      const result = await adapter.listEvents(calendarId, startDate, endDate, accessToken);
+
+      expect(result).toEqual([]);
+    });
+
+    it('エラーが発生した場合はエラーを投げる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const startDate = new Date('2026-01-01');
+      const endDate = new Date('2026-01-31');
+      const accessToken = 'test-access-token';
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        text: jest.fn().mockResolvedValue('Internal Server Error'),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await expect(adapter.listEvents(calendarId, startDate, endDate, accessToken)).rejects.toThrow('Failed to list events');
+    });
+  });
+
+  describe('updateEvent', () => {
+    it('正常にイベントを更新できる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const event = {
+        id: eventId,
+        summary: '更新されたイベント',
+        description: '{}',
+        start: { dateTime: '2026-01-21T10:00:00Z' },
+        end: { dateTime: '2026-01-21T11:00:00Z' },
+      };
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue(event),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await adapter.updateEvent(calendarId, eventId, event, accessToken);
+
+      expect(mockRetryHandler.executeWithRetry).toHaveBeenCalled();
+    });
+
+    it('エラーが発生した場合はエラーを投げる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const event = {
+        id: eventId,
+        summary: '更新されたイベント',
+        description: '{}',
+        start: { dateTime: '2026-01-21T10:00:00Z' },
+        end: { dateTime: '2026-01-21T11:00:00Z' },
+      };
+      const mockResponse = {
+        ok: false,
+        status: 400,
+        text: jest.fn().mockResolvedValue('Bad Request'),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await expect(adapter.updateEvent(calendarId, eventId, event, accessToken)).rejects.toThrow('Failed to update event');
+    });
+  });
+
+  describe('deleteEvent', () => {
+    it('正常にイベントを削除できる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const mockResponse = {
+        ok: true,
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await adapter.deleteEvent(calendarId, eventId, accessToken);
+
+      expect(mockRetryHandler.executeWithRetry).toHaveBeenCalled();
+    });
+
+    it('エラーが発生した場合はエラーを投げる', async () => {
+      const calendarId = 'calendar-id-12345';
+      const eventId = 'event-id-12345';
+      const accessToken = 'test-access-token';
+      const mockResponse = {
+        ok: false,
+        status: 400,
+        text: jest.fn().mockResolvedValue('Bad Request'),
+      } as unknown as Response;
+
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      mockRetryHandler.executeWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+
+      await expect(adapter.deleteEvent(calendarId, eventId, accessToken)).rejects.toThrow('Failed to delete event');
+    });
+  });
 });
