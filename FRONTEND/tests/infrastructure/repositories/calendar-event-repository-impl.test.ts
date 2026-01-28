@@ -21,11 +21,11 @@ describe('CalendarEventRepositoryImpl', () => {
   const accessToken = AccessToken.create('valid-access-token-12345');
   const eventId = EventId.create('event-id-12345');
   const tabs: TabInfo[] = [
-    {
+    TabInfo.create({
       url: 'https://example.com',
       title: 'Example Page',
       index: 0,
-    },
+    }),
   ];
 
   beforeEach(() => {

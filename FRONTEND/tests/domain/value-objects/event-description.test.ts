@@ -5,11 +5,11 @@ import { TabInfo } from '../../../src/domain/value-objects/tab-info';
 
 describe('EventDescription', () => {
   const mockTabs: TabInfo[] = [
-    {
+    TabInfo.create({
       url: 'https://example.com',
       title: 'Example Page',
       index: 0,
-    },
+    }),
   ];
   const version = SchemaVersion.create(1, 0, 0);
   const savedAt = new Date();

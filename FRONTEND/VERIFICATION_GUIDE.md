@@ -9,10 +9,12 @@
 - ✅ カレンダー初期化（専用カレンダーの自動作成）
 - ✅ トークン自動リフレッシュ
 - ✅ 認証状態の管理
+- ✅ タブ情報の取得（Bolt 3）
+- ✅ カレンダーイベントCRUD操作（Bolt 2）
 
 **未実装機能**（今後のBoltで実装予定）:
-- ⏳ タブ情報の取得（Bolt 3）
-- ⏳ 仕事状態の保存（Bolt 4）
+- ⏳ タブ一覧のUI表示（Bolt 5）
+- ⏳ 仕事状態の保存UI（Bolt 5）
 - ⏳ 保存済み仕事一覧表示（Bolt 5）
 - ⏳ 仕事状態の復元（Bolt 6）
 
@@ -396,16 +398,130 @@ chrome.alarms.create('refreshToken', { delayInMinutes: 0 });
 
 ---
 
+## ステップ10: タブキャプチャ機能の確認（Bolt 3）
+
+### 10.1 タブキャプチャの概要
+
+Bolt 3では、現在のウィンドウのタブ情報を取得する機能が実装されました。この機能はまだUIには統合されていないため、Service Workerのコンソールから手動でテストします。
+
+### 10.2 タブキャプチャのテスト
+
+**準備**:
+1. いくつかのタブを開いておく（3〜5個程度）
+2. 各タブは異なるWebサイトを開いていることを確認
+
+**テスト手順**:
+
+1. `chrome://extensions/` を開く
+2. 拡張機能の「詳細」をクリック
+3. 「サービスワーカー」のリンクをクリック（開発者ツールが開く）
+4. 「Console」タブで以下のコードを実行：
+
+```javascript
+// Service Workerから全タブを取得
+(async () => {
+  // すべてのウィンドウからタブを取得
+  // 注意: Service Workerでは currentWindow: true は機能しません
+  const tabs = await chrome.tabs.query({});
+  
+  console.log('=== タブキャプチャ結果 ===');
+  console.log(`取得したタブ数: ${tabs.length}`);
+  
+  // ウィンドウごとにグループ化
+  const tabsByWindow = {};
+  tabs.forEach(tab => {
+    if (!tabsByWindow[tab.windowId]) {
+      tabsByWindow[tab.windowId] = [];
+    }
+    tabsByWindow[tab.windowId].push(tab);
+  });
+  
+  // ウィンドウごとに表示
+  Object.entries(tabsByWindow).forEach(([windowId, windowTabs]) => {
+    console.log(`\n=== Window ${windowId} (${windowTabs.length} tabs) ===`);
+    windowTabs.forEach((tab, index) => {
+      console.log(`[Tab ${index + 1}]`);
+      console.log(`  URL: ${tab.url}`);
+      console.log(`  タイトル: ${tab.title}`);
+      console.log(`  ファビコン: ${tab.favIconUrl || '(なし)'}`);
+      console.log(`  インデックス: ${tab.index}`);
+    });
+  });
+  
+  return tabs;
+})();
+```
+
+**注意**: Service Workerは特定のウィンドウに紐付いていないため、`currentWindow: true` を使用すると空の配列が返されます。実際のアプリケーションでは、サイドパネルやポップアップから呼び出すか、`chrome.windows.getCurrent()` でウィンドウIDを取得してから指定します。
+
+**期待される結果**:
+- ✅ すべてのウィンドウのタブ情報が取得できる
+- ✅ 各タブのURL、タイトル、ファビコンURL、インデックスが正しく表示される
+- ✅ タブの順序（インデックス）が保持されている
+- ✅ ウィンドウごとにタブがグループ化されて表示される
+
+### 10.3 タブキャプチャの詳細テスト
+
+**パフォーマンステスト**:
+
+```javascript
+// パフォーマンステスト：タブ取得時間を測定
+(async () => {
+  const startTime = performance.now();
+  // Service Workerでは currentWindow が機能しないため、全タブを取得
+  const tabs = await chrome.tabs.query({});
+  const endTime = performance.now();
+  
+  console.log(`=== パフォーマンス結果 ===`);
+  console.log(`全タブ数: ${tabs.length}`);
+  console.log(`取得時間: ${(endTime - startTime).toFixed(2)}ms`);
+  
+  // 目標: 20タブで500ms以内
+  if (endTime - startTime <= 500) {
+    console.log('✅ パフォーマンス要件を満たしています');
+  } else {
+    console.log('⚠️ パフォーマンス要件を確認してください');
+  }
+})();
+```
+
+**エラーハンドリングテスト**:
+
+```javascript
+// エラーハンドリングテスト
+(async () => {
+  try {
+    // 存在しないタブIDでテスト
+    await chrome.tabs.get(999999);
+    console.log('❌ エラーがスローされるべきでした');
+  } catch (error) {
+    console.log('✅ エラーが正しくキャッチされました:', error.message);
+  }
+})();
+```
+
+### 10.4 タブキャプチャの確認チェックリスト
+
+- [x] すべてのタブ情報が取得できる
+- [x] タブのURL、タイトル、ファビコンURLが正しく取得できる
+- [x] タブのインデックス（順序）が保持されている
+- [x] パフォーマンス要件を満たしている
+- [x] エラーが適切にハンドリングされる
+
+**確認完了日**: 2026-01-22
+
+---
+
 ## 次のステップ
 
 動作確認が完了したら、以下のBoltに進みます：
 
-- **Bolt 3**: タブ状態キャプチャ（タブ情報の取得と表示）
-- **Bolt 4**: 仕事状態の保存（カレンダーイベントへの保存）
-- **Bolt 5**: 保存済み仕事一覧表示
+- **Bolt 4**: タブ復元機能（カレンダーからタブを復元）
+- **Bolt 5**: UI/UX（タブ一覧表示、保存UI、仕事一覧表示）
+- **Bolt 6-10**: その他の機能とパフォーマンス最適化
 
 ---
 
 **作成日**: 2026-01-22  
 **最終更新**: 2026-01-22  
-**対象バージョン**: 0.1.0 (Bolt 1, Bolt 2完了時点)
+**対象バージョン**: 0.1.0 (Bolt 1, Bolt 2, Bolt 3完了時点)

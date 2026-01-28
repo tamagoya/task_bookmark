@@ -72,7 +72,28 @@ export class WorkStateMetadata {
       throw new Error('WorkStateMetadata savedAt must be a string');
     }
 
-    const tabs = raw.tabs as TabInfo[];
+    // raw.tabsをTabInfoインスタンスに変換
+    // JSONから読み込んだデータはプレーンオブジェクトなので、TabInfo.create()で変換
+    const tabs: TabInfo[] = [];
+    for (const tabData of raw.tabs as unknown[]) {
+      if (tabData instanceof TabInfo) {
+        // 既にTabInfoインスタンスの場合はそのまま使用
+        tabs.push(tabData);
+      } else if (typeof tabData === 'object' && tabData !== null) {
+        // プレーンオブジェクトの場合はTabInfo.create()で変換
+        const tabObj = tabData as Record<string, unknown>;
+        tabs.push(
+          TabInfo.create({
+            url: tabObj.url as string,
+            title: tabObj.title as string,
+            faviconUrl: tabObj.faviconUrl as string | undefined,
+            index: tabObj.index as number,
+            extensions: tabObj.extensions as Record<string, unknown> | undefined,
+          })
+        );
+      }
+    }
+
     const savedAt = raw.savedAt as string;
     const memo = raw.memo as string | undefined;
     const restoredFrom = raw.restoredFrom as string | undefined;

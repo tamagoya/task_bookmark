@@ -22,11 +22,11 @@ describe('CalendarEventService', () => {
   const calendarId = CalendarId.create('calendar-id-12345');
   const accessToken = AccessToken.create('valid-access-token-12345');
   const tabs: TabInfo[] = [
-    {
+    TabInfo.create({
       url: 'https://example.com',
       title: 'Example Page',
       index: 0,
-    },
+    }),
   ];
 
   beforeEach(() => {

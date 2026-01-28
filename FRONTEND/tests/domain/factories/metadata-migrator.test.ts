@@ -5,11 +5,11 @@ import { TabInfo } from '../../../src/domain/value-objects/tab-info';
 
 describe('MetadataMigrator', () => {
   const mockTabs: TabInfo[] = [
-    {
+    TabInfo.create({
       url: 'https://example.com',
       title: 'Example Page',
       index: 0,
-    },
+    }),
   ];
   const version1_0_0 = SchemaVersion.create(1, 0, 0);
   const version1_1_0 = SchemaVersion.create(1, 1, 0);

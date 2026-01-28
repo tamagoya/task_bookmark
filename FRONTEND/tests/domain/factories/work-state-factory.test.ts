@@ -8,11 +8,11 @@ describe('WorkStateFactory', () => {
   const eventId = EventId.create('event-id-12345');
   const title = EventTitle.create('仕事名');
   const tabs: TabInfo[] = [
-    {
+    TabInfo.create({
       url: 'https://example.com',
       title: 'Example Page',
       index: 0,
-    },
+    }),
   ];
   const startTime = new Date('2026-01-21T10:00:00Z');
   const endTime = new Date('2026-01-21T11:00:00Z');

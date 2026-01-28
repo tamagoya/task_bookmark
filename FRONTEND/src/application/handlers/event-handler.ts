@@ -8,6 +8,7 @@ import { TaskBookmarkUpdated } from '../../domain/events/task-bookmark-updated';
 import { TaskBookmarkDeleted } from '../../domain/events/task-bookmark-deleted';
 import { TaskBookmarkCorrupted } from '../../domain/events/task-bookmark-corrupted';
 import { RestoreRelationRecorded } from '../../domain/events/restore-relation-recorded';
+import { TabsCaptured } from '../../domain/events/tabs-captured';
 import { UIMessenger } from '../../infrastructure/adapters/ui-messenger';
 import { Logger } from '../../infrastructure/adapters/logger';
 
@@ -172,5 +173,28 @@ export class EventHandler {
       `Restore relation recorded: from ${event.fromEventId} to ${event.toEventId}`
     );
     // UIへの通知は不要（バックグラウンド処理）
+  }
+
+  /**
+   * TabsCapturedイベントを処理
+   * @param event イベント
+   */
+  async handleTabsCaptured(event: TabsCaptured): Promise<void> {
+    this.logger.info(`Tabs captured: ${event.tabCount} tabs in window ${event.windowId}`);
+    await this.uiMessenger.sendMessage({
+      type: 'TABS_CAPTURED',
+      payload: {
+        tabs: event.tabs.map((tab) => ({
+          url: tab.url,
+          title: tab.title,
+          faviconUrl: tab.faviconUrl,
+          index: tab.index,
+          extensions: tab.extensions,
+        })),
+        windowId: event.windowId,
+        capturedAt: event.capturedAt,
+        tabCount: event.tabCount,
+      },
+    });
   }
 }
