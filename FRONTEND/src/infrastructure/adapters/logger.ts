@@ -9,7 +9,11 @@ export class Logger {
    * @param error エラー（オプション）
    */
   error(message: string, error?: Error): void {
-    console.error(`[ERROR] ${message}`, error);
+    if (error) {
+      console.error(`[ERROR] ${message}`, error);
+    } else {
+      console.error(`[ERROR] ${message}`);
+    }
   }
 
   /**

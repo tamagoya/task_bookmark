@@ -6,6 +6,7 @@ import { EventTitle } from '../../domain/value-objects/event-title';
 import { CalendarId } from '../../domain/value-objects/calendar-id';
 import { AccessToken } from '../../domain/value-objects/access-token';
 import { TabInfo } from '../../domain/value-objects/tab-info';
+import { WorkStateMetadata } from '../../domain/value-objects/work-state-metadata';
 import { TaskBookmarkCreated } from '../../domain/events/task-bookmark-created';
 import { TaskBookmarkUpdated } from '../../domain/events/task-bookmark-updated';
 import { TaskBookmarkDeleted } from '../../domain/events/task-bookmark-deleted';
@@ -63,6 +64,21 @@ export class CalendarEventService {
     );
 
     return eventId;
+  }
+
+  /**
+   * イベントIDで仕事状態を取得
+   * @param eventId イベントID
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   * @returns 見つかった場合はWorkState、見つからない場合はnull
+   */
+  async findById(
+    eventId: EventId,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<WorkState | null> {
+    return await this.calendarEventRepository.findById(eventId, calendarId, accessToken);
   }
 
   /**
@@ -151,5 +167,54 @@ export class CalendarEventService {
     await this.eventHandler.handleTaskBookmarkDeleted(
       new TaskBookmarkDeleted(eventId.value, new Date())
     );
+  }
+
+  /**
+   * 復元メタデータを記録
+   * @param eventId イベントID
+   * @param restoredAt 復元日時
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  async recordRestore(
+    eventId: EventId,
+    restoredAt: Date,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    // 既存のWorkStateを取得
+    const existingWorkState = await this.calendarEventRepository.findById(
+      eventId,
+      calendarId,
+      accessToken
+    );
+
+    if (!existingWorkState) {
+      throw new Error(`WorkState not found: ${eventId.value}`);
+    }
+
+    if (!existingWorkState.metadata) {
+      throw new Error(`WorkState metadata not found: ${eventId.value}`);
+    }
+
+    // restoredToに復元日時を追加（イミュータビリティのため新しいメタデータを作成）
+    const existingMetadata = existingWorkState.metadata;
+    const existingRestoredTo = existingMetadata.restoredTo || [];
+    const updatedRestoredTo = [...existingRestoredTo, restoredAt.toISOString()];
+
+    // 新しいメタデータを作成（createFromRawを使用）
+    const updatedMetadata = WorkStateMetadata.createFromRaw(
+      {
+        ...existingMetadata.toJSON(),
+        restoredTo: updatedRestoredTo,
+      },
+      existingMetadata.version
+    );
+
+    // WorkStateを更新
+    existingWorkState.updateMetadata(updatedMetadata);
+
+    // カレンダーに保存
+    await this.calendarEventRepository.update(existingWorkState, calendarId, accessToken);
   }
 }

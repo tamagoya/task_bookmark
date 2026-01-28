@@ -60,4 +60,56 @@ export class ChromeTabsAdapter {
       return undefined;
     }
   }
+
+  /**
+   * 新しいタブを作成
+   * @param windowId ウィンドウID
+   * @param url URL
+   * @param index タブの位置（省略時は最後）
+   * @returns 作成されたタブ情報
+   * @throws 権限エラー、タブ作成エラー
+   */
+  async createTab(windowId: number, url: string, index?: number): Promise<chrome.tabs.Tab> {
+    try {
+      const createProperties: chrome.tabs.CreateProperties = {
+        windowId,
+        url,
+      };
+      if (index !== undefined) {
+        createProperties.index = index;
+      }
+
+      const tab = await chrome.tabs.create(createProperties);
+      return tab;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to create tab: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      throw new Error(`Failed to create tab: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 複数のタブを順番通りに作成
+   * @param windowId ウィンドウID
+   * @param urls URLの配列
+   * @returns 作成されたタブ情報の配列
+   * @throws 権限エラー
+   * @note 順序保証のため、並列処理は行わない。エラーが発生したタブはスキップして続行する。
+   */
+  async createTabs(windowId: number, urls: string[]): Promise<chrome.tabs.Tab[]> {
+    const tabs: chrome.tabs.Tab[] = [];
+
+    for (const url of urls) {
+      try {
+        const tab = await this.createTab(windowId, url);
+        tabs.push(tab);
+      } catch (error) {
+        // エラーが発生したタブはスキップして続行
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`Failed to create tab for URL ${url}: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      }
+    }
+
+    return tabs;
+  }
 }

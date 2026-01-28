@@ -143,10 +143,12 @@ export class CalendarEventRepositoryImpl implements CalendarEventRepository {
     calendarId: CalendarId,
     accessToken: AccessToken
   ): Promise<void> {
-    const description = workState.description
-      ? workState.description.value
-      : workState.metadata
+    // メタデータが存在する場合は常にメタデータから新しいdescriptionを生成
+    // （restoredToなどの更新を反映するため）
+    const description = workState.metadata
       ? EventDescription.create(workState.metadata).value
+      : workState.description
+      ? workState.description.value
       : '';
 
     const calendarEvent: CalendarEvent = {

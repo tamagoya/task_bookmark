@@ -19,6 +19,7 @@ describe('ChromeWindowsAdapter', () => {
       windows: {
         getCurrent: jest.fn(),
         get: jest.fn(),
+        create: jest.fn(),
       },
       runtime: {
         lastError: undefined,
@@ -92,6 +93,51 @@ describe('ChromeWindowsAdapter', () => {
       (chrome.windows.get as jest.Mock).mockRejectedValue(new Error('No window with id: 999'));
 
       await expect(adapter.getWindow(windowId)).rejects.toThrow('Failed to get window');
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('createWindow', () => {
+    it('should create window successfully without URLs', async () => {
+      const window = {
+        id: 12345,
+        focused: true,
+        type: 'normal',
+        state: 'normal',
+        tabs: [],
+      } as unknown as chrome.windows.Window;
+
+      (chrome.windows.create as jest.Mock).mockResolvedValue(window);
+
+      const result = await adapter.createWindow();
+
+      expect(chrome.windows.create).toHaveBeenCalledWith({});
+      expect(result).toEqual(window);
+    });
+
+    it('should create window with URLs', async () => {
+      const urls = ['https://example.com', 'https://example.org'];
+      const window = {
+        id: 12345,
+        focused: true,
+        type: 'normal',
+        state: 'normal',
+        tabs: [],
+      } as unknown as chrome.windows.Window;
+
+      (chrome.windows.create as jest.Mock).mockResolvedValue(window);
+
+      const result = await adapter.createWindow(urls);
+
+      expect(chrome.windows.create).toHaveBeenCalledWith({ url: urls });
+      expect(result).toEqual(window);
+    });
+
+    it('should throw error if create fails', async () => {
+      const error = new Error('Permission denied');
+      (chrome.windows.create as jest.Mock).mockRejectedValue(error);
+
+      await expect(adapter.createWindow()).rejects.toThrow('Failed to create window');
       expect(logger.error).toHaveBeenCalled();
     });
   });

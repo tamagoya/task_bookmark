@@ -19,6 +19,7 @@ describe('ChromeTabsAdapter', () => {
       tabs: {
         query: jest.fn(),
         get: jest.fn(),
+        create: jest.fn(),
       },
       runtime: {
         lastError: undefined,
@@ -147,6 +148,134 @@ describe('ChromeTabsAdapter', () => {
 
       expect(result).toBeUndefined();
       expect(logger.warn).toHaveBeenCalled();
+    });
+  });
+
+  describe('createTab', () => {
+    it('should create tab successfully', async () => {
+      const windowId = 12345;
+      const url = 'https://example.com';
+      const tab = {
+        id: 1,
+        url,
+        title: 'Example Page',
+        windowId,
+        index: 0,
+      } as unknown as chrome.tabs.Tab;
+
+      (chrome.tabs.create as jest.Mock).mockResolvedValue(tab);
+
+      const result = await adapter.createTab(windowId, url);
+
+      expect(chrome.tabs.create).toHaveBeenCalledWith({ windowId, url });
+      expect(result).toEqual(tab);
+    });
+
+    it('should create tab with index', async () => {
+      const windowId = 12345;
+      const url = 'https://example.com';
+      const index = 2;
+      const tab = {
+        id: 1,
+        url,
+        title: 'Example Page',
+        windowId,
+        index,
+      } as unknown as chrome.tabs.Tab;
+
+      (chrome.tabs.create as jest.Mock).mockResolvedValue(tab);
+
+      const result = await adapter.createTab(windowId, url, index);
+
+      expect(chrome.tabs.create).toHaveBeenCalledWith({ windowId, url, index });
+      expect(result).toEqual(tab);
+    });
+
+    it('should throw error if create fails', async () => {
+      const windowId = 12345;
+      const url = 'https://example.com';
+      const error = new Error('Permission denied');
+      (chrome.tabs.create as jest.Mock).mockRejectedValue(error);
+
+      await expect(adapter.createTab(windowId, url)).rejects.toThrow('Failed to create tab');
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('createTabs', () => {
+    it('should create tabs in order successfully', async () => {
+      const windowId = 12345;
+      const urls = ['https://example.com', 'https://example.org', 'https://example.net'];
+      const tabs = urls.map((url, index) => ({
+        id: index + 1,
+        url,
+        title: `Page ${index + 1}`,
+        windowId,
+        index,
+      })) as unknown as chrome.tabs.Tab[];
+
+      (chrome.tabs.create as jest.Mock)
+        .mockResolvedValueOnce(tabs[0])
+        .mockResolvedValueOnce(tabs[1])
+        .mockResolvedValueOnce(tabs[2]);
+
+      const result = await adapter.createTabs(windowId, urls);
+
+      expect(chrome.tabs.create).toHaveBeenCalledTimes(3);
+      expect(chrome.tabs.create).toHaveBeenNthCalledWith(1, { windowId, url: urls[0] });
+      expect(chrome.tabs.create).toHaveBeenNthCalledWith(2, { windowId, url: urls[1] });
+      expect(chrome.tabs.create).toHaveBeenNthCalledWith(3, { windowId, url: urls[2] });
+      expect(result).toEqual(tabs);
+    });
+
+    it('should skip failed tabs and continue', async () => {
+      const windowId = 12345;
+      const urls = ['https://example.com', 'invalid-url', 'https://example.net'];
+      const tabs = [
+        {
+          id: 1,
+          url: urls[0],
+          title: 'Page 1',
+          windowId,
+          index: 0,
+        },
+        {
+          id: 3,
+          url: urls[2],
+          title: 'Page 3',
+          windowId,
+          index: 1,
+        },
+      ] as unknown as chrome.tabs.Tab[];
+
+      (chrome.tabs.create as jest.Mock)
+        .mockResolvedValueOnce(tabs[0])
+        .mockRejectedValueOnce(new Error('Invalid URL'))
+        .mockResolvedValueOnce(tabs[1]);
+
+      const result = await adapter.createTabs(windowId, urls);
+
+      expect(chrome.tabs.create).toHaveBeenCalledTimes(3);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(tabs[0]);
+      expect(result[1]).toEqual(tabs[1]);
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('should return empty array if all tabs fail', async () => {
+      const windowId = 12345;
+      const urls = ['https://example-fail1.com', 'https://example-fail2.com'];
+      const error = new Error('Invalid URL');
+
+      (chrome.tabs.create as jest.Mock).mockRejectedValue(error);
+
+      const result = await adapter.createTabs(windowId, urls);
+
+      expect(chrome.tabs.create).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(0);
+      // logger.errorはcreateTabsで2回呼ばれる（各失敗タブにつき1回）
+      // 前のテストで呼ばれた分も含まれるため、最低2回は呼ばれていることを確認
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 });

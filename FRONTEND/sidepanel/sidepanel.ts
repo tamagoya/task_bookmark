@@ -356,10 +356,49 @@ function renderWorkStateList(): void {
       item.appendChild(memo);
     }
     
+    // 復元ボタン
+    const restoreButton = document.createElement('button');
+    restoreButton.className = 'button primary restore-button';
+    restoreButton.textContent = '復元';
+    restoreButton.addEventListener('click', () => {
+      restoreWorkState(workState.eventId);
+    });
+    
     item.appendChild(header);
     item.appendChild(meta);
+    item.appendChild(restoreButton);
     workStatesList.appendChild(item);
   });
+}
+
+// 仕事状態を復元
+async function restoreWorkState(eventId: string): Promise<void> {
+  const messageSection = document.getElementById('message-section');
+  const message = document.getElementById('message');
+  
+  if (!messageSection || !message) {
+    return;
+  }
+
+  // プログレスインジケーターを表示
+  showMessage('復元中...', 'info');
+  messageSection.style.display = 'block';
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'RESTORE_WORK_STATE',
+      payload: { eventId },
+    });
+
+    if (response.success) {
+      showMessage(`仕事状態を復元しました（${response.tabCount}タブ）`, 'success');
+    } else {
+      throw new Error(response.error || 'Failed to restore work state');
+    }
+  } catch (error) {
+    console.error('Failed to restore work state:', error);
+    showMessage('復元に失敗しました', 'error');
+  }
 }
 
 // 日時をフォーマット

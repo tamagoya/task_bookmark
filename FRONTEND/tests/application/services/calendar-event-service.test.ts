@@ -173,4 +173,87 @@ describe('CalendarEventService', () => {
       expect(eventHandler.handleTaskBookmarkDeleted).toHaveBeenCalled();
     });
   });
+
+  describe('recordRestore', () => {
+    it('正常に復元メタデータを記録できる', async () => {
+      const eventId = EventId.create('event-id-12345');
+      const version = SchemaVersion.create(1, 0, 0);
+      const startTime = new Date('2026-01-21T10:00:00Z');
+      const endTime = new Date('2026-01-21T11:00:00Z');
+      const metadata = WorkStateMetadata.create(version, tabs, startTime);
+      const workState = WorkState.create(
+        eventId,
+        EventTitle.create('仕事名'),
+        null,
+        startTime,
+        endTime,
+        metadata
+      );
+      repository.findById.mockResolvedValue(workState);
+      repository.update.mockResolvedValue();
+
+      const restoredAt = new Date('2026-01-22T10:00:00Z');
+      await service.recordRestore(eventId, restoredAt, calendarId, accessToken);
+
+      expect(repository.findById).toHaveBeenCalledWith(eventId, calendarId, accessToken);
+      expect(repository.update).toHaveBeenCalled();
+      
+      // 更新されたWorkStateのメタデータを確認
+      const updateCall = repository.update.mock.calls[0];
+      const updatedWorkState = updateCall[0] as WorkState;
+      expect(updatedWorkState.metadata?.restoredTo).toContain(restoredAt.toISOString());
+    });
+
+    it('既存のrestoredToに復元日時を追加できる', async () => {
+      const eventId = EventId.create('event-id-12345');
+      const version = SchemaVersion.create(1, 0, 0);
+      const startTime = new Date('2026-01-21T10:00:00Z');
+      const endTime = new Date('2026-01-21T11:00:00Z');
+      const existingRestoredTo = ['2026-01-21T12:00:00Z'];
+      const metadata = WorkStateMetadata.createFromRaw(
+        {
+          version: version.toString(),
+          tabs: tabs.map(tab => ({
+            url: tab.url,
+            title: tab.title,
+            faviconUrl: tab.faviconUrl,
+            index: tab.index,
+          })),
+          savedAt: startTime.toISOString(),
+          restoredTo: existingRestoredTo,
+        },
+        version
+      );
+      const workState = WorkState.create(
+        eventId,
+        EventTitle.create('仕事名'),
+        null,
+        startTime,
+        endTime,
+        metadata
+      );
+      repository.findById.mockResolvedValue(workState);
+      repository.update.mockResolvedValue();
+
+      const restoredAt = new Date('2026-01-22T10:00:00Z');
+      await service.recordRestore(eventId, restoredAt, calendarId, accessToken);
+
+      // 更新されたWorkStateのメタデータを確認
+      const updateCall = repository.update.mock.calls[0];
+      const updatedWorkState = updateCall[0] as WorkState;
+      expect(updatedWorkState.metadata?.restoredTo).toContain(existingRestoredTo[0]);
+      expect(updatedWorkState.metadata?.restoredTo).toContain(restoredAt.toISOString());
+      expect(updatedWorkState.metadata?.restoredTo).toHaveLength(2);
+    });
+
+    it('存在しないイベントIDで復元を記録しようとするとエラーを投げる', async () => {
+      const eventId = EventId.create('event-id-12345');
+      repository.findById.mockResolvedValue(null);
+
+      const restoredAt = new Date('2026-01-22T10:00:00Z');
+      await expect(
+        service.recordRestore(eventId, restoredAt, calendarId, accessToken)
+      ).rejects.toThrow('WorkState not found');
+    });
+  });
 });

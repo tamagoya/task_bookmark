@@ -12,6 +12,9 @@ import { ChromeWindowsAdapter } from '../src/infrastructure/adapters/chrome-wind
 import { TabCaptureService } from '../src/application/services/tab-capture-service';
 import { CalendarEventRepositoryImpl } from '../src/infrastructure/repositories/calendar-event-repository-impl';
 import { CalendarEventService } from '../src/application/services/calendar-event-service';
+import { TabRestoreManager } from '../src/application/services/tab-restore-manager';
+import { RestoreService } from '../src/application/services/restore-service';
+import { EventId } from '../src/domain/value-objects/event-id';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -31,6 +34,16 @@ const windowsAdapter = new ChromeWindowsAdapter(logger);
 const tabCaptureService = new TabCaptureService(tabsAdapter, windowsAdapter, logger, eventHandler);
 const calendarEventRepository = new CalendarEventRepositoryImpl(calendarAdapter, eventHandler);
 const calendarEventService = new CalendarEventService(calendarEventRepository, eventHandler);
+
+// Bolt 6: 仕事状態の復元のための依存関係
+const tabRestoreManager = new TabRestoreManager(tabsAdapter, logger);
+const restoreService = new RestoreService(
+  windowsAdapter,
+  tabsAdapter,
+  calendarEventService,
+  tabRestoreManager,
+  logger
+);
 
 // 拡張機能のインストール時（アラーム設定は下記に移動）
 
@@ -156,6 +169,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             });
           } catch (error) {
             logger.error('Failed to get work state events', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'RESTORE_WORK_STATE':
+          try {
+            const { eventId } = message.payload as { eventId: string };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // 復元を実行
+            const result = await restoreService.restoreWorkState(
+              EventId.create(eventId),
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ 
+              success: true, 
+              windowId: result.windowId,
+              tabCount: result.tabIds.length
+            });
+          } catch (error) {
+            logger.error('Failed to restore work state', error instanceof Error ? error : new Error(String(error)));
             sendResponse({ 
               success: false, 
               error: error instanceof Error ? error.message : String(error) 

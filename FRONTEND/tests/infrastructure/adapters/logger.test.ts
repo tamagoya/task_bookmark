@@ -25,7 +25,8 @@ describe('Logger', () => {
 
       logger.error('Test error message');
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] Test error message', undefined);
+      // エラーオブジェクトがない場合はメッセージのみ
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] Test error message');
       
       consoleErrorSpy.mockRestore();
     });

@@ -387,3 +387,10 @@ header h1 {
   font-weight: 500;
   margin-left: 8px;
 }
+
+.restore-button {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+}
