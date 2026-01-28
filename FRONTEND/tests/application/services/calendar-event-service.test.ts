@@ -52,16 +52,48 @@ describe('CalendarEventService', () => {
       const eventId = EventId.create('event-id-12345');
       repository.save.mockResolvedValue(eventId);
 
+      const beforeCall = Date.now();
       const result = await service.createWorkStateEvent(
         tabs,
         '仕事名',
         calendarId,
         accessToken
       );
+      const afterCall = Date.now();
 
       expect(result).toEqual(eventId);
       expect(repository.save).toHaveBeenCalled();
       expect(eventHandler.handleTaskBookmarkCreated).toHaveBeenCalled();
+
+      // 時間計算の確認: 終了時間は現在時刻、開始時間は30分前
+      const saveCall = repository.save.mock.calls[0];
+      const workState = saveCall[0] as WorkState;
+      const endTime = workState.endTime.getTime();
+      const startTime = workState.startTime.getTime();
+      const duration = endTime - startTime;
+
+      // 終了時間は現在時刻の前後1秒以内
+      expect(endTime).toBeGreaterThanOrEqual(beforeCall - 1000);
+      expect(endTime).toBeLessThanOrEqual(afterCall + 1000);
+
+      // 開始時間は終了時間の30分前（30分 = 30 * 60 * 1000 ms）
+      expect(duration).toBe(30 * 60 * 1000);
+    });
+
+    it('メモ付きで仕事状態を保存できる', async () => {
+      const eventId = EventId.create('event-id-12345');
+      repository.save.mockResolvedValue(eventId);
+
+      const result = await service.createWorkStateEvent(
+        tabs,
+        '仕事名',
+        calendarId,
+        accessToken,
+        '作業メモ'
+      );
+
+      expect(result).toEqual(eventId);
+      expect(repository.save).toHaveBeenCalled();
     });
   });
 

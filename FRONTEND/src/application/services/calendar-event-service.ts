@@ -38,8 +38,9 @@ export class CalendarEventService {
     memo?: string
   ): Promise<EventId> {
     const eventTitle = EventTitle.create(title);
-    const startTime = new Date();
-    const endTime = new Date(startTime.getTime() + 3600000); // 1時間後
+    // US-3の要件: 保存実行時の時刻を終了時間として、30分前を開始時間とする
+    const endTime = new Date(); // 現在時刻
+    const startTime = new Date(endTime.getTime() - 30 * 60 * 1000); // 30分前
 
     // 一時的なイベントIDを生成（実際のIDは保存後に取得）
     const tempEventId = EventId.create(`temp-${Date.now()}`);

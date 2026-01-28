@@ -5,19 +5,32 @@ import { Logger } from '../src/infrastructure/adapters/logger';
 import { AuthenticationService } from '../src/application/services/authentication-service';
 import { CalendarInitializationService } from '../src/application/services/calendar-initialization-service';
 import { TokenRefreshService } from '../src/application/services/token-refresh-service';
-// import { EventHandler } from '../src/application/handlers/event-handler'; // 将来的に使用予定
+import { EventHandler } from '../src/application/handlers/event-handler';
+import { UIMessenger } from '../src/infrastructure/adapters/ui-messenger';
+import { ChromeTabsAdapter } from '../src/infrastructure/adapters/chrome-tabs-adapter';
+import { ChromeWindowsAdapter } from '../src/infrastructure/adapters/chrome-windows-adapter';
+import { TabCaptureService } from '../src/application/services/tab-capture-service';
+import { CalendarEventRepositoryImpl } from '../src/infrastructure/repositories/calendar-event-repository-impl';
+import { CalendarEventService } from '../src/application/services/calendar-event-service';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
 const authRepository = new AuthRepositoryImpl();
 const calendarAdapter = new GoogleCalendarAdapter();
-// const uiMessenger = new UIMessenger(); // 将来的に使用予定
+const uiMessenger = new UIMessenger();
 const logger = new Logger();
 
 const authenticationService = new AuthenticationService(identityAdapter, authRepository);
 const calendarInitService = new CalendarInitializationService(authRepository, calendarAdapter);
 const tokenRefreshService = new TokenRefreshService(authRepository, identityAdapter);
-// const eventHandler = new EventHandler(uiMessenger, logger); // 将来的に使用予定
+const eventHandler = new EventHandler(uiMessenger, logger);
+
+// Bolt 4: タブキャプチャとカレンダーイベント保存のための依存関係
+const tabsAdapter = new ChromeTabsAdapter(logger);
+const windowsAdapter = new ChromeWindowsAdapter(logger);
+const tabCaptureService = new TabCaptureService(tabsAdapter, windowsAdapter, logger, eventHandler);
+const calendarEventRepository = new CalendarEventRepositoryImpl(calendarAdapter, eventHandler);
+const calendarEventService = new CalendarEventService(calendarEventRepository, eventHandler);
 
 // 拡張機能のインストール時（アラーム設定は下記に移動）
 
@@ -41,6 +54,69 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'LOGOUT':
           await authenticationService.logout();
           sendResponse({ success: true });
+          break;
+
+        case 'GET_CURRENT_TABS':
+          try {
+            const tabs = await tabCaptureService.getCurrentWindowTabs();
+            sendResponse({ 
+              success: true, 
+              tabs: tabs.map(tab => ({
+                url: tab.url,
+                title: tab.title,
+                faviconUrl: tab.faviconUrl,
+                index: tab.index,
+              }))
+            });
+          } catch (error) {
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'SAVE_WORK_STATE':
+          try {
+            const { title, memo } = message.payload as { title: string; memo?: string };
+            
+            // バリデーション
+            if (!title || title.trim().length === 0) {
+              sendResponse({ success: false, error: 'Title is required' });
+              break;
+            }
+
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // タブ情報を取得
+            const tabs = await tabCaptureService.getCurrentWindowTabs();
+            if (tabs.length === 0) {
+              sendResponse({ success: false, error: 'No tabs to save' });
+              break;
+            }
+
+            // カレンダーイベントとして保存
+            const eventId = await calendarEventService.createWorkStateEvent(
+              tabs,
+              title,
+              authState.calendarId,
+              authState.accessToken,
+              memo
+            );
+
+            sendResponse({ success: true, eventId: eventId.value });
+          } catch (error) {
+            logger.error('Failed to save work state', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
           break;
 
         default:
