@@ -95,6 +95,62 @@ describe('CalendarEventService', () => {
       expect(result).toEqual(eventId);
       expect(repository.save).toHaveBeenCalled();
     });
+
+    it('復元元のイベントIDを指定して保存できる（Bolt 7）', async () => {
+      const eventId = EventId.create('event-id-12345');
+      const restoredFromEventId = EventId.create('restored-from-event-id');
+      repository.save.mockResolvedValue(eventId);
+
+      const result = await service.createWorkStateEvent(
+        tabs,
+        '仕事名',
+        calendarId,
+        accessToken,
+        undefined,
+        restoredFromEventId
+      );
+
+      expect(result).toEqual(eventId);
+      expect(repository.save).toHaveBeenCalled();
+      
+      // 保存されたWorkStateのメタデータにrestoredFromが設定されていることを確認
+      const saveCall = repository.save.mock.calls[0];
+      const workState = saveCall[0] as WorkState;
+      expect(workState.metadata?.restoredFrom).toBe(restoredFromEventId.value);
+    });
+
+    it('復元時刻を指定して保存する場合、その時刻がstartTimeになる（Bolt 7）', async () => {
+      const eventId = EventId.create('event-id-12345');
+      const restoredFromEventId = EventId.create('restored-from-event-id');
+      const restoredAtTime = new Date('2026-01-22T10:30:00Z');
+      repository.save.mockResolvedValue(eventId);
+
+      const beforeCall = Date.now();
+      const result = await service.createWorkStateEvent(
+        tabs,
+        '仕事名',
+        calendarId,
+        accessToken,
+        undefined,
+        restoredFromEventId,
+        restoredAtTime
+      );
+      const afterCall = Date.now();
+
+      expect(result).toEqual(eventId);
+      expect(repository.save).toHaveBeenCalled();
+      
+      // 保存されたWorkStateの時間を確認
+      const saveCall = repository.save.mock.calls[0];
+      const workState = saveCall[0] as WorkState;
+      
+      // startTimeは復元時刻と一致
+      expect(workState.startTime.getTime()).toBe(restoredAtTime.getTime());
+      
+      // endTimeは現在時刻（前後1秒以内）
+      expect(workState.endTime.getTime()).toBeGreaterThanOrEqual(beforeCall - 1000);
+      expect(workState.endTime.getTime()).toBeLessThanOrEqual(afterCall + 1000);
+    });
   });
 
   describe('getWorkStateEvents', () => {

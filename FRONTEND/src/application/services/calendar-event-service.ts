@@ -29,6 +29,8 @@ export class CalendarEventService {
    * @param calendarId カレンダーID
    * @param accessToken アクセストークン
    * @param memo メモ（任意）
+   * @param restoredFromEventId 復元元のイベントID（任意、Bolt 7）
+   * @param restoredAtTime 復元ボタンを押した時刻（任意、Bolt 7）- これがstartTimeになる
    * @returns 作成されたイベントID
    */
   async createWorkStateEvent(
@@ -36,12 +38,16 @@ export class CalendarEventService {
     title: string,
     calendarId: CalendarId,
     accessToken: AccessToken,
-    memo?: string
+    memo?: string,
+    restoredFromEventId?: EventId,
+    restoredAtTime?: Date
   ): Promise<EventId> {
     const eventTitle = EventTitle.create(title);
-    // US-3の要件: 保存実行時の時刻を終了時間として、30分前を開始時間とする
+    // US-3の要件: 保存実行時の時刻を終了時間とする
+    // 復元からの保存の場合は、復元ボタンを押した時刻を開始時間とする
+    // 通常の保存の場合は、30分前を開始時間とする
     const endTime = new Date(); // 現在時刻
-    const startTime = new Date(endTime.getTime() - 30 * 60 * 1000); // 30分前
+    const startTime = restoredAtTime || new Date(endTime.getTime() - 30 * 60 * 1000);
 
     // 一時的なイベントIDを生成（実際のIDは保存後に取得）
     const tempEventId = EventId.create(`temp-${Date.now()}`);
@@ -52,7 +58,8 @@ export class CalendarEventService {
       tabs,
       startTime,
       endTime,
-      memo
+      memo,
+      restoredFromEventId
     );
 
     // カレンダーに保存

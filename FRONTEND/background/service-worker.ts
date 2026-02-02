@@ -14,6 +14,7 @@ import { CalendarEventRepositoryImpl } from '../src/infrastructure/repositories/
 import { CalendarEventService } from '../src/application/services/calendar-event-service';
 import { TabRestoreManager } from '../src/application/services/tab-restore-manager';
 import { RestoreService } from '../src/application/services/restore-service';
+import { RestoreRelationService } from '../src/application/services/restore-relation-service';
 import { EventId } from '../src/domain/value-objects/event-id';
 
 // 依存関係の初期化
@@ -44,6 +45,9 @@ const restoreService = new RestoreService(
   tabRestoreManager,
   logger
 );
+
+// Bolt 7: 前後関係取得のための依存関係
+const restoreRelationService = new RestoreRelationService(calendarEventRepository, logger);
 
 // 拡張機能のインストール時（アラーム設定は下記に移動）
 
@@ -113,14 +117,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
+            // 復元元のイベントIDと復元時刻を取得（Bolt 7: 復元後に保存する際に使用）
+            const storageData = await chrome.storage.local.get(['lastRestoredEventId', 'lastRestoredAtTime']);
+            const restoredFromEventId = storageData.lastRestoredEventId 
+              ? EventId.create(storageData.lastRestoredEventId)
+              : undefined;
+            const restoredAtTime = storageData.lastRestoredAtTime 
+              ? new Date(storageData.lastRestoredAtTime)
+              : undefined;
+
             // カレンダーイベントとして保存
             const eventId = await calendarEventService.createWorkStateEvent(
               tabs,
               title,
               authState.calendarId,
               authState.accessToken,
-              memo
+              memo,
+              restoredFromEventId,
+              restoredAtTime
             );
+
+            // 保存が成功したら、復元関連データをクリア（次の保存時には使用しない）
+            if (restoredFromEventId) {
+              await chrome.storage.local.remove(['lastRestoredEventId', 'lastRestoredAtTime']);
+            }
 
             sendResponse({ success: true, eventId: eventId.value });
           } catch (error) {
@@ -165,6 +185,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 favicons: ws.metadata?.tabs.slice(0, 5).map(tab => tab.faviconUrl).filter((url): url is string => url !== undefined) || [],
                 memo: ws.metadata?.memo,
                 isCorrupted: ws.isCorrupted,
+                hasRestoredFrom: !!ws.metadata?.restoredFrom, // 復元元があるか（Bolt 7）
+                hasRestoredTo: !!(ws.metadata?.restoredTo && ws.metadata.restoredTo.length > 0), // 復元先があるか（Bolt 7）
               }))
             });
           } catch (error) {
@@ -187,12 +209,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
+            // 復元ボタンを押した時刻を記録
+            const restoredAtTime = new Date().toISOString();
+
             // 復元を実行
             const result = await restoreService.restoreWorkState(
               EventId.create(eventId),
               authState.calendarId,
               authState.accessToken
             );
+
+            // 復元元のイベントIDと復元時刻をChrome Storageに保存（Bolt 7: 復元後に保存する際に使用）
+            await chrome.storage.local.set({ 
+              lastRestoredEventId: eventId,
+              lastRestoredAtTime: restoredAtTime
+            });
 
             sendResponse({ 
               success: true, 
@@ -201,6 +232,49 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             });
           } catch (error) {
             logger.error('Failed to restore work state', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'GET_RESTORE_RELATIONS':
+          try {
+            const { eventId } = message.payload as { eventId: string };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // 前後関係を取得
+            const relations = await restoreRelationService.getRestoreRelations(
+              EventId.create(eventId),
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ 
+              success: true, 
+              relations: {
+                restoredFrom: relations.restoredFrom ? {
+                  eventId: relations.restoredFrom.eventId,
+                  title: relations.restoredFrom.title,
+                  savedAt: relations.restoredFrom.savedAt,
+                } : null,
+                restoredTo: relations.restoredTo.map(r => ({
+                  eventId: r.eventId,
+                  title: r.title,
+                  savedAt: r.savedAt,
+                  restoredAt: r.restoredAt,
+                })),
+              }
+            });
+          } catch (error) {
+            logger.error('Failed to get restore relations', error instanceof Error ? error : new Error(String(error)));
             sendResponse({ 
               success: false, 
               error: error instanceof Error ? error.message : String(error) 

@@ -48,6 +48,21 @@ describe('WorkStateFactory', () => {
       expect(workState.metadata?.memo).toBe(memo);
     });
 
+    it('復元元のイベントIDを指定して作成できる（Bolt 7）', () => {
+      const restoredFromEventId = EventId.create('restored-from-event-id');
+      const workState = WorkStateFactory.createFromTabs(
+        eventId,
+        title,
+        tabs,
+        startTime,
+        endTime,
+        undefined,
+        restoredFromEventId
+      );
+      
+      expect(workState.metadata?.restoredFrom).toBe(restoredFromEventId.value);
+    });
+
     it('空のタブ配列で作成しようとするとエラーを投げる', () => {
       expect(() => {
         WorkStateFactory.createFromTabs(eventId, title, [], startTime, endTime);

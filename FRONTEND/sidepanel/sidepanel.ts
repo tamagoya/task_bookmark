@@ -189,6 +189,8 @@ interface WorkStateListItem {
   favicons: string[];
   memo?: string;
   isCorrupted: boolean;
+  hasRestoredFrom?: boolean; // 復元元があるか（別の仕事から派生した）（Bolt 7）
+  hasRestoredTo?: boolean;   // 復元先があるか（この仕事から派生した）（Bolt 7）
 }
 
 // 日付範囲の型定義
@@ -311,6 +313,25 @@ function renderWorkStateList(): void {
       badge.className = 'work-state-corrupted-badge';
       badge.textContent = '破損';
       title.appendChild(badge);
+    }
+    // 前後関係インジケーター（Bolt 7）
+    // 復元元がある場合（別の仕事から派生した）
+    if (workState.hasRestoredFrom) {
+      const indicator = document.createElement('span');
+      indicator.className = 'restore-relation-indicator restored-from';
+      indicator.setAttribute('aria-label', '復元元あり');
+      indicator.textContent = '⬆';
+      indicator.setAttribute('data-tooltip', '別の仕事から復元');
+      title.appendChild(indicator);
+    }
+    // 復元先がある場合（この仕事から派生した）
+    if (workState.hasRestoredTo) {
+      const indicator = document.createElement('span');
+      indicator.className = 'restore-relation-indicator restored-to';
+      indicator.setAttribute('aria-label', '復元先あり');
+      indicator.textContent = '⬇';
+      indicator.setAttribute('data-tooltip', '別の仕事へ復元済み');
+      title.appendChild(indicator);
     }
     
     const tabCount = document.createElement('div');

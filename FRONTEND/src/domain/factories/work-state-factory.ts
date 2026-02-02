@@ -27,6 +27,7 @@ export class WorkStateFactory {
    * @param startTime 開始時刻
    * @param endTime 終了時刻
    * @param memo メモ（任意）
+   * @param restoredFromEventId 復元元のイベントID（任意、Bolt 7）
    * @returns WorkStateインスタンス
    */
   static createFromTabs(
@@ -35,7 +36,8 @@ export class WorkStateFactory {
     tabs: TabInfo[],
     startTime: Date,
     endTime: Date,
-    memo?: string
+    memo?: string,
+    restoredFromEventId?: EventId
   ): WorkState {
     if (!tabs || tabs.length === 0) {
       throw new Error('WorkState tabs must contain at least one tab');
@@ -44,12 +46,32 @@ export class WorkStateFactory {
       throw new Error('WorkState startTime must be before endTime');
     }
 
-    const metadata = WorkStateMetadata.create(
-      WorkStateFactory.CURRENT_VERSION,
-      tabs,
-      new Date(),
-      memo
-    );
+    let metadata: WorkStateMetadata;
+    if (restoredFromEventId) {
+      // 復元元がある場合、createFromRawを使用してrestoredFromを設定
+      metadata = WorkStateMetadata.createFromRaw(
+        {
+          version: WorkStateFactory.CURRENT_VERSION.toString(),
+          tabs: tabs.map(tab => ({
+            url: tab.url,
+            title: tab.title,
+            faviconUrl: tab.faviconUrl,
+            index: tab.index,
+          })),
+          savedAt: new Date().toISOString(),
+          memo,
+          restoredFrom: restoredFromEventId.value,
+        },
+        WorkStateFactory.CURRENT_VERSION
+      );
+    } else {
+      metadata = WorkStateMetadata.create(
+        WorkStateFactory.CURRENT_VERSION,
+        tabs,
+        new Date(),
+        memo
+      );
+    }
     const description = EventDescription.create(metadata);
 
     return WorkState.create(eventId, title, description, startTime, endTime, metadata);

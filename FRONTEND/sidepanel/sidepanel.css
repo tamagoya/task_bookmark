@@ -336,6 +336,71 @@ header h1 {
   color: #1a1a1a;
   flex: 1;
   margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.restore-relation-indicator {
+  font-size: 12px;
+  cursor: help;
+  position: relative;
+  display: inline-block;
+  font-weight: bold;
+}
+
+/* 復元元あり（別の仕事から派生した）- 青色 */
+.restore-relation-indicator.restored-from {
+  color: #1a73e8;
+}
+
+/* 復元先あり（別の仕事へ派生した）- オレンジ色 */
+.restore-relation-indicator.restored-to {
+  color: #f57c00;
+}
+
+.restore-relation-indicator::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background-color: #333;
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  margin-bottom: 4px;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.restore-relation-indicator:hover::after {
+  opacity: 1;
+}
+
+/* ツールチップの矢印 */
+.restore-relation-indicator::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #333;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  margin-bottom: -4px;
+  z-index: 1001;
+}
+
+.restore-relation-indicator:hover::before {
+  opacity: 1;
 }
 
 .work-state-tab-count {
