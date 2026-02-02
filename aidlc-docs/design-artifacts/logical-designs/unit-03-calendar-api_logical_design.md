@@ -31,7 +31,7 @@
 - `TabInfo` (Unit 2から参照、Value Object)
 - `CalendarEventRepository` (Interface)
 - `WorkStateFactory`, `MetadataMigrator` (Factories)
-- Domain Events (`TaskBookmarkCreated`, `TaskBookmarkUpdated`, `TaskBookmarkDeleted`, `RestoreRelationRecorded`, `TaskBookmarkCorrupted`)
+- Domain Events (`TaskBookmarkCreated`, `TaskBookmarkUpdated`, `TaskBookmarkDeleted`, `RestoreRelationRecorded`, `TaskBookmarkCorrupted`, `TabsUpdated` (Bolt 8))
 
 **特徴**:
 - インフラストラクチャに依存しない
@@ -59,6 +59,26 @@
 - `updateWorkStateEvent(eventId: EventId, updates: Partial<WorkState>): Promise<void>`
   - イベントの更新（URL編集、メタデータ更新）
   - 依存関係: Domain Layer (TaskBookmark Aggregate), Infrastructure Layer (CalendarEventRepositoryImpl)
+
+- `updateWorkStateTabs(eventId: EventId, newTabs: TabInfo[]): Promise<void>` (Bolt 8: URL編集機能)
+  - タブリスト全体を更新
+  - 依存関係: Domain Layer (WorkState, ValidationError), Infrastructure Layer (CalendarEventRepositoryImpl)
+  - バリデーション: タブリストは空であってはならない、インデックスは連続している必要がある
+
+- `addTabToWorkState(eventId: EventId, tab: TabInfo, index?: number): Promise<void>` (Bolt 8: URL編集機能)
+  - タブを追加
+  - 依存関係: Domain Layer (WorkState, TabInfo), Infrastructure Layer (CalendarEventRepositoryImpl)
+  - バリデーション: タブは有効なTabInfoである必要がある、インデックスは範囲内である必要がある
+
+- `removeTabFromWorkState(eventId: EventId, tabIndex: number): Promise<void>` (Bolt 8: URL編集機能)
+  - タブを削除
+  - 依存関係: Domain Layer (WorkState), Infrastructure Layer (CalendarEventRepositoryImpl)
+  - バリデーション: インデックスは範囲内である必要がある、最後の1つのタブは削除不可
+
+- `reorderWorkStateTabs(eventId: EventId, fromIndex: number, toIndex: number): Promise<void>` (Bolt 8: URL編集機能)
+  - タブの順序を変更
+  - 依存関係: Domain Layer (WorkState), Infrastructure Layer (CalendarEventRepositoryImpl)
+  - バリデーション: インデックスは範囲内である必要がある
 
 - `deleteWorkStateEvent(eventId: EventId): Promise<void>`
   - イベントの削除（オプション）
@@ -88,6 +108,7 @@
   - `TaskBookmarkUpdated`: UI更新、ログ記録
   - `TaskBookmarkDeleted`: UI更新、ログ記録
   - `TaskBookmarkCorrupted`: エラー通知、ログ記録
+  - `TabsUpdated` (Bolt 8): UI更新、ログ記録
 
 **依存関係**:
 - Domain Layer (Domain Events)
@@ -347,6 +368,98 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 12. CalendarEventService → WorkState を返す
 ```
 
+### URL編集フロー (Bolt 8: URL編集機能)
+
+#### タブリスト全体の更新
+```
+1. User → UI Layer (編集後のタブリストを入力)
+   ↓
+2. UI Layer → CalendarEventService.updateWorkStateTabs(eventId, newTabs)
+   ↓
+3. CalendarEventService → CalendarEventRepository.findById() (既存のWorkStateを取得)
+   ↓
+4. CalendarEventService → WorkState.validateTabList(newTabs) (バリデーション)
+   ↓
+5. CalendarEventService → WorkState.updateTabs(newTabs) (ドメインロジック)
+   ↓
+6. WorkState → 新しいWorkStateMetadataを作成（イミュータビリティ）
+   ↓
+7. WorkState → Domain Event: TabsUpdated を発行
+   ↓
+8. CalendarEventService → CalendarEventRepository.update()
+   ↓
+9. CalendarEventRepositoryImpl → GoogleCalendarAdapter.updateEvent()
+   ↓
+10. GoogleCalendarAdapter → RetryHandler.executeWithRetry()
+   ↓
+11. RetryHandler → Google Calendar API (HTTP Request)
+   ↓
+12. Google Calendar API → 更新成功
+   ↓
+13. EventHandler → UIMessenger.sendMessage() (更新成功の通知)
+   ↓
+14. UI Layer → 更新成功メッセージを表示
+```
+
+#### タブの追加
+```
+1. User → UI Layer (新しいURLを入力)
+   ↓
+2. UI Layer → CalendarEventService.addTabToWorkState(eventId, tab, index?)
+   ↓
+3. CalendarEventService → CalendarEventRepository.findById() (既存のWorkStateを取得)
+   ↓
+4. CalendarEventService → WorkState.addTab(tab, index) (ドメインロジック)
+   ↓
+5. WorkState → 新しいWorkStateMetadataを作成（タブを追加、インデックスを再計算）
+   ↓
+6. WorkState → Domain Event: TabsUpdated を発行
+   ↓
+7. CalendarEventService → CalendarEventRepository.update()
+   ↓
+8. (以下、タブリスト全体の更新と同じフロー)
+```
+
+#### タブの削除
+```
+1. User → UI Layer (削除するタブを選択)
+   ↓
+2. UI Layer → CalendarEventService.removeTabFromWorkState(eventId, tabIndex)
+   ↓
+3. CalendarEventService → CalendarEventRepository.findById() (既存のWorkStateを取得)
+   ↓
+4. CalendarEventService → WorkState.removeTab(tabIndex) (ドメインロジック)
+   ↓
+5. WorkState → バリデーション: 最後の1つのタブは削除不可
+   ↓
+6. WorkState → 新しいWorkStateMetadataを作成（タブを削除、インデックスを再計算）
+   ↓
+7. WorkState → Domain Event: TabsUpdated を発行
+   ↓
+8. CalendarEventService → CalendarEventRepository.update()
+   ↓
+9. (以下、タブリスト全体の更新と同じフロー)
+```
+
+#### タブの順序変更
+```
+1. User → UI Layer (ドラッグ&ドロップでタブの順序を変更)
+   ↓
+2. UI Layer → CalendarEventService.reorderWorkStateTabs(eventId, fromIndex, toIndex)
+   ↓
+3. CalendarEventService → CalendarEventRepository.findById() (既存のWorkStateを取得)
+   ↓
+4. CalendarEventService → WorkState.reorderTabs(fromIndex, toIndex) (ドメインロジック)
+   ↓
+5. WorkState → 新しいWorkStateMetadataを作成（タブの順序を変更、インデックスを再計算）
+   ↓
+6. WorkState → Domain Event: TabsUpdated を発行
+   ↓
+7. CalendarEventService → CalendarEventRepository.update()
+   ↓
+8. (以下、タブリスト全体の更新と同じフロー)
+```
+
 ---
 
 ## 統合ポイント
@@ -377,6 +490,16 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
   - `WORK_STATE_UPDATED`: 更新成功
   - `WORK_STATE_DELETED`: 削除成功
   - `WORK_STATE_CORRUPTED`: データ破損の検出
+  - `TABS_UPDATED` (Bolt 8): タブリスト更新成功
+
+### 5. Unit 5 (UI/UX実装) との統合 (Bolt 8: URL編集機能)
+- **目的**: URL編集UIからの編集操作を受け取り、結果を返す
+- **実装**: `CalendarEventService`のURL編集メソッド
+- **メッセージタイプ**:
+  - `UPDATE_WORK_STATE_TABS`: タブリスト全体の更新
+  - `ADD_TAB_TO_WORK_STATE`: タブの追加
+  - `REMOVE_TAB_FROM_WORK_STATE`: タブの削除
+  - `REORDER_WORK_STATE_TABS`: タブの順序変更
 
 ---
 
@@ -403,6 +526,16 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 - **エラー情報の記録**: `ValidationError[]`に詳細を記録
 - **UIでの表示**: 破損データは視覚的に区別し、エラー詳細を表示可能にする
 
+### 5. URL編集エラー (Bolt 8: URL編集機能)
+- **バリデーションエラー**: タブリストのバリデーションエラー（空配列、無効なインデックスなど）
+  - エラーは`ValidationError[]`として返す
+  - ユーザーフレンドリーな日本語メッセージを表示
+- **APIエラー**: Google Calendar APIの更新エラー
+  - Retry パターンを適用（最大3回、指数バックオフ）
+  - エラー時は、編集操作をロールバック（新しいWorkStateMetadataは作成されない）
+- **同時編集エラー**: 他の操作（保存、削除など）が同時に実行された場合
+  - 楽観的ロックにより、後勝ちになる（将来の拡張で改善可能）
+
 ---
 
 ## パフォーマンス要件への対応
@@ -425,6 +558,14 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 ### 3. リソース使用量
 - **メモリ使用量**: 50MB以内（通常時）
 - **CPU使用率**: バックグラウンド処理時のCPU使用率は5%以内（アイドル時）
+
+### 4. URL編集のパフォーマンス (Bolt 8: URL編集機能)
+- **編集操作時間**: タブリストの更新（最大100タブ）は2秒以内（NFR-001に準拠）
+  - Google Calendar API呼び出し: 1秒以内
+  - バリデーション: 100ms以内（100タブの場合）
+  - データ変換: 100ms以内
+  - エラーハンドリング: 800ms以内（リトライ含む）
+- **大量タブの編集**: 100個以上のタブを編集する場合でも、パフォーマンスが許容範囲内であることを確認
 
 ---
 
@@ -525,8 +666,13 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 - 破損データの検証は、パフォーマンスに影響を与えない範囲で行う
 - マイグレーションは、必要に応じてのみ実行（バージョンが異なる場合のみ）
 
+### 6. URL編集のパフォーマンス最適化 (Bolt 8: URL編集機能)
+- **バリデーションの最適化**: 大量のタブ（100個以上）を編集する場合、バリデーションを効率的に実行
+- **インデックスの再計算**: タブの追加・削除・順序変更後、インデックスを効率的に再計算
+- **API呼び出しの最適化**: 編集操作は1回のAPI呼び出しで完了するため、パフォーマンスが良い
+
 ---
 
 **作成日**: 2026-01-21  
-**最終更新**: 2026-01-21  
-**ステータス**: 設計完了
+**最終更新**: 2026-02-03  
+**ステータス**: 設計完了（Bolt 8: URL編集機能の拡張を追加）

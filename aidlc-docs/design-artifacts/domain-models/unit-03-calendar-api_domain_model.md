@@ -101,6 +101,31 @@ GoogleカレンダーのWebUIやその他カレンダーツールによって、
   - 部分的に読み込み可能かどうかを判定
   - 戻り値: `title`と`eventId`が有効であれば`true`
 
+- `updateTabs(newTabs: TabInfo[]): void` (Bolt 8: URL編集機能)
+  - タブリスト全体を更新
+  - 不変条件: `newTabs`は空配列であってはならない、各要素の`index`は0から始まる連続した整数である必要がある
+  - エラー: 空配列の場合`Error('Tab list cannot be empty')`、無効なインデックスの場合`Error('Tab indices must be consecutive starting from 0')`
+  
+- `addTab(tab: TabInfo, index?: number): void` (Bolt 8: URL編集機能)
+  - タブを追加
+  - 不変条件: `tab`は有効な`TabInfo`である必要がある、`index`が指定された場合0以上かつ現在のタブ数以下である必要がある
+  - エラー: 無効なTabInfoの場合`Error('Invalid tab information')`、無効なインデックスの場合`Error('Index out of range')`
+  
+- `removeTab(tabIndex: number): void` (Bolt 8: URL編集機能)
+  - タブを削除
+  - 不変条件: `tabIndex`は0以上かつ現在のタブ数未満である必要がある、削除後タブリストは空であってはならない
+  - エラー: インデックスが範囲外の場合`Error('Index out of range')`、最後の1つのタブを削除しようとした場合`Error('Cannot remove the last tab')`
+  
+- `reorderTabs(fromIndex: number, toIndex: number): void` (Bolt 8: URL編集機能)
+  - タブの順序を変更
+  - 不変条件: `fromIndex`と`toIndex`は0以上かつ現在のタブ数未満である必要がある
+  - エラー: インデックスが範囲外の場合`Error('Index out of range')`
+  
+- `validateTabList(tabs: TabInfo[]): ValidationError[]` (Bolt 8: URL編集機能)
+  - タブリストの検証
+  - 戻り値: 検証エラーのリスト（エラーがない場合は空配列）
+  - 検証ルール: 空配列チェック、インデックスの連続性、TabInfoの有効性
+
 ---
 
 ## Value Objects
@@ -393,6 +418,27 @@ GoogleカレンダーのWebUIやその他カレンダーツールによって、
 
 ---
 
+### TabsUpdated (Bolt 8: URL編集機能)
+
+タブリストが更新された時に発行されるDomain Eventです。
+
+#### ペイロード
+- `eventId: string` - 更新されたイベントID
+- `updatedTabs: TabInfo[]` - 更新後のタブ情報の配列
+- `operationType: 'update' | 'add' | 'remove' | 'reorder'` - 操作の種類
+- `operationDetails?: { fromIndex?: number; toIndex?: number; addedTab?: TabInfo; removedTabIndex?: number }` - 操作の詳細（任意）
+- `updatedAt: Date` - 更新日時
+
+#### 発生タイミング
+- `WorkState`のタブリストが更新された時（`updateTabs`、`addTab`、`removeTab`、`reorderTabs`が呼ばれた時）
+
+#### ビジネスルール
+- `updatedTabs`配列は空であってはならない（少なくとも1つのタブが必要）
+- `operationType`は実行された操作の種類を正確に反映する必要がある
+- `operationDetails`は、操作の種類に応じて適切な情報を含む必要がある
+
+---
+
 ## Repositories
 
 ### CalendarEventRepository
@@ -533,6 +579,27 @@ WorkStateの作成を担当するFactoryです。複雑なオブジェクト作�
 1. **イベントIDの一意性**: 更新時、イベントIDは変更不可
 2. **メタデータの整合性**: 更新後のメタデータは有効なスキーマバージョンを持つ必要がある
 3. **タブ情報の保持**: タブ情報を空にすることはできない
+
+### URL編集に関するルール (Bolt 8: URL編集機能)
+1. **タブリストの最小要件**:
+   - タブリストは空であってはならない（少なくとも1つのタブが必要）
+   - 最後の1つのタブは削除できない
+
+2. **タブの順序**:
+   - タブのインデックスは0から始まる連続した整数である必要がある（0, 1, 2, ...）
+   - タブの順序を変更した後も、インデックスは連続している必要がある
+
+3. **URLの検証**:
+   - 追加されるURLは有効なURL形式である必要がある（`TabInfo`のバリデーションに準拠）
+   - 同じURLが複数回出現しても問題ない（許可）
+
+4. **編集操作の整合性**:
+   - 編集操作（追加、削除、順序変更）は、タブリストの整合性を保つ必要がある
+   - 編集後、`metadata.tabs`と`description`（JSON形式）が一致している必要がある
+
+5. **編集履歴の記録**（将来の拡張）:
+   - 編集履歴は`WorkStateMetadata.extensions`に記録可能（オプション）
+   - 編集履歴には、編集日時、操作の種類、編集前後の状態を含めることができる
 
 ### 復元関係に関するルール
 1. **循環参照の防止**: 復元関係は循環参照を形成してはならない（将来的な拡張）
@@ -681,5 +748,5 @@ WorkStateの作成を担当するFactoryです。複雑なオブジェクト作�
 ---
 
 **作成日**: 2026-01-21  
-**最終更新**: 2026-01-21  
-**ステータス**: 設計完了
+**最終更新**: 2026-02-03  
+**ステータス**: 設計完了（Bolt 8: URL編集機能の拡張を追加）
