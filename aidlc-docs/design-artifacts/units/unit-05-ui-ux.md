@@ -63,9 +63,11 @@ Chrome拡張機能のユーザーインターフェースを実装するUnitで�
 - メモの入力（任意）
 - 保存ボタン
 - バリデーション
+- 復元セッション時: 仕事名の初期表示（復元した仕事名をデフォルト値とする）、復元した時刻の表示
 
 **依存関係**:
 - Unit 3 (Calendar API): 保存処理
+- Chrome Storage API: 復元セッション情報（lastRestoredWorkTitle, lastRestoredAtTime）の読み取り
 
 ### 4. Work State List Component
 **責任**: 保存済み仕事一覧の表示

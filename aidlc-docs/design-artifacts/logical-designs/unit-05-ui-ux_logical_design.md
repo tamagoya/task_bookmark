@@ -68,13 +68,15 @@
 - メモの入力（任意）
 - 保存ボタン
 - バリデーション
+- **復元セッション時の初期表示**: `chrome.storage.local` の `lastRestoredWorkTitle`, `lastRestoredAtTime` を読み取り、仕事名のデフォルト表示と「復元した時刻」の表示を行う。認証済み表示時・保存成功後・storage 変更時（`chrome.storage.onChanged`）に反映を更新する。
 
 **実装ファイル**:
-- `FRONTEND/sidepanel/sidepanel.html` (save-section)
-- `FRONTEND/sidepanel/sidepanel.ts` (saveWorkState)
+- `FRONTEND/sidepanel/sidepanel.html` (save-section, 復元した時刻表示要素)
+- `FRONTEND/sidepanel/sidepanel.ts` (saveWorkState, applyLastRestoredSession)
 
 **依存関係**:
 - Application Layer (CalendarEventService)
+- Chrome Storage API (lastRestoredEventId, lastRestoredAtTime, lastRestoredWorkTitle)
 
 ---
 

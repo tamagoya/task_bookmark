@@ -33,7 +33,7 @@ export class OptimizedRestoreService {
     calendarId: CalendarId,
     accessToken: AccessToken,
     onProgress?: (completed: number, total: number) => void
-  ): Promise<{ windowId: number; tabIds: number[] }> {
+  ): Promise<{ windowId: number; tabIds: number[]; title: string }> {
     return this.performanceInterceptor.intercept(
       'restoreWorkState',
       () => this.baseService.restoreWorkState(eventId, calendarId, accessToken, onProgress)

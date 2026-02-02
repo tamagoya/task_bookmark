@@ -367,6 +367,8 @@ async function saveWorkState(event: Event): Promise<void> {
       showMessage('保存しました', 'success');
       // フォームをリセット
       form.reset();
+      // 復元セッション表示をクリア（ストレージは service-worker でクリア済み）
+      await applyLastRestoredSession();
       // タブ一覧を再読み込み
       await loadCurrentTabs();
     } else {
@@ -714,6 +716,52 @@ function formatTime(date: Date): string {
   return `${hours}:${minutes}`;
 }
 
+// 復元セッション情報を読み取り、保存フォームの初期値と復元時刻表示を更新
+async function applyLastRestoredSession(): Promise<void> {
+  const keys = ['lastRestoredEventId', 'lastRestoredAtTime', 'lastRestoredWorkTitle'] as const;
+  const stored = await chrome.storage.local.get(keys);
+  const titleInput = document.getElementById('work-title') as HTMLInputElement | null;
+  const restoredAtEl = document.getElementById('restored-at-display');
+
+  const hasSession =
+    stored.lastRestoredAtTime != null && String(stored.lastRestoredAtTime).trim() !== '';
+
+  if (titleInput) {
+    if (hasSession && stored.lastRestoredWorkTitle != null) {
+      titleInput.value = String(stored.lastRestoredWorkTitle).slice(0, 200);
+    } else {
+      titleInput.value = '';
+    }
+  }
+
+  if (restoredAtEl) {
+    if (hasSession && stored.lastRestoredAtTime) {
+      try {
+        const date = new Date(stored.lastRestoredAtTime as string);
+        const formatted =
+          isNaN(date.getTime()) ? String(stored.lastRestoredAtTime) : formatRestoredAt(date);
+        restoredAtEl.textContent = `復元した時刻: ${formatted}`;
+        restoredAtEl.style.display = 'block';
+      } catch {
+        restoredAtEl.textContent = '';
+        restoredAtEl.style.display = 'none';
+      }
+    } else {
+      restoredAtEl.textContent = '';
+      restoredAtEl.style.display = 'none';
+    }
+  }
+}
+
+function formatRestoredAt(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}`;
+}
+
 // 認証状態に応じてUIを表示/非表示
 async function updateUIForAuthStatus(isAuthenticated: boolean): Promise<void> {
   const tabsSection = document.getElementById('tabs-section');
@@ -725,6 +773,7 @@ async function updateUIForAuthStatus(isAuthenticated: boolean): Promise<void> {
     if (saveSection) saveSection.style.display = 'block';
     if (workStatesSection) workStatesSection.style.display = 'block';
     await loadCurrentTabs();
+    await applyLastRestoredSession();
     await loadWorkStateEvents('all');
   } else {
     if (tabsSection) tabsSection.style.display = 'none';
@@ -810,6 +859,16 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'TASK_BOOKMARK_CREATED') {
     // 新しい仕事状態が保存されたら一覧を再読み込み
     loadWorkStateEvents(currentFilter).catch(console.error);
+  }
+});
+
+// 復元セッション情報の変更を購読（他タブやカレンダーから復元した場合に保存フォームを更新）
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  const restoreKeys = ['lastRestoredEventId', 'lastRestoredAtTime', 'lastRestoredWorkTitle'];
+  const hasRestoreChange = restoreKeys.some((k) => changes[k] != null);
+  if (hasRestoreChange) {
+    applyLastRestoredSession().catch(console.error);
   }
 });
 

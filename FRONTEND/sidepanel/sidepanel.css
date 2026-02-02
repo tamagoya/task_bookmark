@@ -148,6 +148,12 @@ header h1 {
   color: #1a1a1a;
 }
 
+.restored-at-display {
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 12px;
+}
+
 .form-group {
   margin-bottom: 16px;
 }

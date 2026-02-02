@@ -91,9 +91,26 @@ function getRestoredFrom(obj: Record<string, unknown>): string | null {
 }
 
 /**
+ * chrome.runtime が利用可能かチェックする。
+ * 拡張機能がリロード/更新されると、既存の Content Script のコンテキストが無効化され
+ * chrome.runtime が undefined になる。
+ */
+function isExtensionContextValid(): boolean {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 復元を実行し、結果に応じてメッセージを表示
  */
 function runRestore(eventId: string, button: HTMLButtonElement): void {
+  if (!isExtensionContextValid()) {
+    showToast('拡張機能との接続が切れました。ページを再読み込みしてください。');
+    return;
+  }
   button.disabled = true;
   button.textContent = '復元中...';
   chrome.runtime.sendMessage(
@@ -191,6 +208,10 @@ function createPrevTaskButton(restoredFromEventId: string): HTMLButtonElement {
  * 「前のタスクへ」クリック時: イベント詳細URLを取得して遷移
  */
 function runPrevTask(eventId: string, button: HTMLButtonElement): void {
+  if (!isExtensionContextValid()) {
+    showToast('拡張機能との接続が切れました。ページを再読み込みしてください。');
+    return;
+  }
   button.disabled = true;
   button.textContent = '遷移中...';
   chrome.runtime.sendMessage(
