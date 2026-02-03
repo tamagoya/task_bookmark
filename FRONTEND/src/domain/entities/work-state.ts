@@ -3,6 +3,7 @@ import { EventTitle } from '../value-objects/event-title';
 import { EventDescription } from '../value-objects/event-description';
 import { WorkStateMetadata } from '../value-objects/work-state-metadata';
 import { ValidationError } from '../value-objects/validation-error';
+import { TabInfo } from '../value-objects/tab-info';
 
 /**
  * WorkState Entity
@@ -222,5 +223,216 @@ export class WorkState {
    */
   canPartiallyLoad(): boolean {
     return this._eventId !== null && this._title !== null;
+  }
+
+  /**
+   * タブリスト全体を更新（Bolt 8: URL編集機能）
+   * @param newTabs 新しいタブリスト
+   * @returns 更新されたWorkStateインスタンス（イミュータビリティ）
+   * @throws 空配列の場合、無効なインデックスの場合
+   */
+  updateTabs(newTabs: TabInfo[]): WorkState {
+    // バリデーション
+    const errors = this.validateTabList(newTabs);
+    if (errors.length > 0) {
+      const error = errors[0];
+      throw new Error(error.errorMessage);
+    }
+
+    if (!this._metadata) {
+      throw new Error('WorkState metadata must exist to update tabs');
+    }
+
+    // 新しいメタデータを作成（イミュータビリティ）
+    // 復元関係を保持するため、toJSON()を使用してからcreateFromRaw()を呼び出す
+    const currentJson = this._metadata.toJSON();
+    const updatedJson = {
+      ...currentJson,
+      tabs: newTabs.map((tab) => ({
+        url: tab.url,
+        title: tab.title,
+        faviconUrl: tab.faviconUrl,
+        index: tab.index,
+        extensions: tab.extensions,
+      })),
+    };
+    const updatedMetadata = WorkStateMetadata.createFromRaw(updatedJson, this._metadata.version);
+
+    // 新しいWorkStateインスタンスを作成
+    return WorkState.create(
+      this._eventId,
+      this._title,
+      this._description,
+      this._startTime,
+      this._endTime,
+      updatedMetadata
+    );
+  }
+
+  /**
+   * タブを追加（Bolt 8: URL編集機能）
+   * @param tab 追加するタブ
+   * @param index 追加位置（任意、指定しない場合は末尾）
+   * @returns 更新されたWorkStateインスタンス（イミュータビリティ）
+   * @throws 無効なTabInfoの場合、範囲外のインデックスの場合
+   */
+  addTab(tab: TabInfo, index?: number): WorkState {
+    if (!tab) {
+      throw new Error('Invalid tab information');
+    }
+
+    if (!this._metadata) {
+      throw new Error('WorkState metadata must exist to add tab');
+    }
+
+    const currentTabs = this._metadata.tabs;
+    const insertIndex = index !== undefined ? index : currentTabs.length;
+
+    // インデックスの範囲チェック
+    if (insertIndex < 0 || insertIndex > currentTabs.length) {
+      throw new Error('Index out of range');
+    }
+
+    // 新しいタブリストを作成
+    const newTabs: TabInfo[] = [...currentTabs];
+    newTabs.splice(insertIndex, 0, tab);
+
+    // インデックスを再計算
+    const reindexedTabs = newTabs.map((t, i) =>
+      TabInfo.create({
+        url: t.url,
+        title: t.title,
+        faviconUrl: t.faviconUrl,
+        index: i,
+        extensions: t.extensions,
+      })
+    );
+
+    // updateTabsを使用して更新
+    return this.updateTabs(reindexedTabs);
+  }
+
+  /**
+   * タブを削除（Bolt 8: URL編集機能）
+   * @param tabIndex 削除するタブのインデックス
+   * @returns 更新されたWorkStateインスタンス（イミュータビリティ）
+   * @throws 範囲外のインデックスの場合、最後の1つのタブを削除しようとした場合
+   */
+  removeTab(tabIndex: number): WorkState {
+    if (!this._metadata) {
+      throw new Error('WorkState metadata must exist to remove tab');
+    }
+
+    const currentTabs = this._metadata.tabs;
+
+    // インデックスの範囲チェック
+    if (tabIndex < 0 || tabIndex >= currentTabs.length) {
+      throw new Error('Index out of range');
+    }
+
+    // 最後の1つのタブは削除不可
+    if (currentTabs.length === 1) {
+      throw new Error('Cannot remove the last tab');
+    }
+
+    // 新しいタブリストを作成
+    const newTabs = currentTabs.filter((_, i) => i !== tabIndex);
+
+    // インデックスを再計算
+    const reindexedTabs = newTabs.map((t, i) =>
+      TabInfo.create({
+        url: t.url,
+        title: t.title,
+        faviconUrl: t.faviconUrl,
+        index: i,
+        extensions: t.extensions,
+      })
+    );
+
+    // updateTabsを使用して更新
+    return this.updateTabs(reindexedTabs);
+  }
+
+  /**
+   * タブの順序を変更（Bolt 8: URL編集機能）
+   * @param fromIndex 移動元のインデックス
+   * @param toIndex 移動先のインデックス
+   * @returns 更新されたWorkStateインスタンス（イミュータビリティ）
+   * @throws 範囲外のインデックスの場合
+   */
+  reorderTabs(fromIndex: number, toIndex: number): WorkState {
+    if (!this._metadata) {
+      throw new Error('WorkState metadata must exist to reorder tabs');
+    }
+
+    const currentTabs = this._metadata.tabs;
+
+    // インデックスの範囲チェック
+    if (fromIndex < 0 || fromIndex >= currentTabs.length) {
+      throw new Error('Index out of range');
+    }
+    if (toIndex < 0 || toIndex >= currentTabs.length) {
+      throw new Error('Index out of range');
+    }
+
+    // 新しいタブリストを作成
+    const newTabs = [...currentTabs];
+    const [movedTab] = newTabs.splice(fromIndex, 1);
+    newTabs.splice(toIndex, 0, movedTab);
+
+    // インデックスを再計算
+    const reindexedTabs = newTabs.map((t, i) =>
+      TabInfo.create({
+        url: t.url,
+        title: t.title,
+        faviconUrl: t.faviconUrl,
+        index: i,
+        extensions: t.extensions,
+      })
+    );
+
+    // updateTabsを使用して更新
+    return this.updateTabs(reindexedTabs);
+  }
+
+  /**
+   * タブリストの検証（Bolt 8: URL編集機能）
+   * @param tabs 検証するタブリスト
+   * @returns 検証エラーのリスト（エラーがない場合は空配列）
+   */
+  validateTabList(tabs: TabInfo[]): ValidationError[] {
+    const errors: ValidationError[] = [];
+
+    // 空配列チェック
+    if (!tabs || tabs.length === 0) {
+      errors.push(
+        ValidationError.create(
+          'tabs',
+          'EMPTY_TAB_LIST',
+          'Tab list cannot be empty',
+          'CRITICAL',
+          false
+        )
+      );
+      return errors; // 空配列の場合は他の検証をスキップ
+    }
+
+    // インデックスの連続性チェック
+    for (let i = 0; i < tabs.length; i++) {
+      if (tabs[i].index !== i) {
+        errors.push(
+          ValidationError.create(
+            `tabs[${i}].index`,
+            'INVALID_TAB_INDICES',
+            'Tab indices must be consecutive starting from 0',
+            'CRITICAL',
+            false
+          )
+        );
+        break; // 最初のエラーで終了
+      }
+    }
+
+    return errors;
   }
 }

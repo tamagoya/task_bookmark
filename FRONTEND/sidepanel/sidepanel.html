@@ -73,6 +73,32 @@
         </div>
         <div id="work-states-list" class="work-states-list"></div>
       </div>
+
+      <!-- URL編集モーダル（Bolt 8） -->
+      <div id="url-edit-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="url-edit-title">URL編集</h2>
+            <button id="url-edit-close" class="modal-close" aria-label="閉じる">×</button>
+          </div>
+          <div class="modal-body">
+            <div id="url-edit-tabs-list" class="url-edit-tabs-list"></div>
+            <div class="url-edit-add-section">
+              <h3>新しいURLを追加</h3>
+              <div class="url-edit-add-form">
+                <input type="text" id="url-edit-new-url" class="url-edit-input" placeholder="https://example.com">
+                <input type="text" id="url-edit-new-title" class="url-edit-input" placeholder="ページタイトル（任意）">
+                <button id="url-edit-add-button" class="button secondary">追加</button>
+              </div>
+            </div>
+          </div>
+          <div id="url-edit-error" class="modal-error" style="display: none;"></div>
+          <div class="modal-footer">
+            <button id="url-edit-cancel" class="button secondary">キャンセル</button>
+            <button id="url-edit-save" class="button primary">保存</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
   <script type="module" src="sidepanel.ts"></script>

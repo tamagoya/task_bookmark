@@ -10,6 +10,7 @@ import { WorkStateMetadata } from '../../domain/value-objects/work-state-metadat
 import { TaskBookmarkCreated } from '../../domain/events/task-bookmark-created';
 import { TaskBookmarkUpdated } from '../../domain/events/task-bookmark-updated';
 import { TaskBookmarkDeleted } from '../../domain/events/task-bookmark-deleted';
+import { TabsUpdated } from '../../domain/events/tabs-updated';
 import { EventHandler } from '../handlers/event-handler';
 
 /**
@@ -231,5 +232,171 @@ export class CalendarEventService {
 
     // カレンダーに保存
     await this.calendarEventRepository.update(existingWorkState, calendarId, accessToken);
+  }
+
+  /**
+   * タブリスト全体を更新（Bolt 8: URL編集機能）
+   * @param eventId イベントID
+   * @param newTabs 新しいタブリスト
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  async updateWorkStateTabs(
+    eventId: EventId,
+    newTabs: TabInfo[],
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    // 既存のWorkStateを取得
+    const existingWorkState = await this.calendarEventRepository.findById(
+      eventId,
+      calendarId,
+      accessToken
+    );
+
+    if (!existingWorkState) {
+      throw new Error(`WorkState not found: ${eventId.value}`);
+    }
+
+    // タブリストを更新（イミュータビリティのため新しいインスタンスを返す）
+    const updatedWorkState = existingWorkState.updateTabs(newTabs);
+
+    // カレンダーに保存
+    await this.calendarEventRepository.update(updatedWorkState, calendarId, accessToken);
+
+    // Domain Eventを発行
+    await this.eventHandler.handleTabsUpdated(
+      new TabsUpdated(eventId.value, newTabs, 'update', undefined, new Date())
+    );
+  }
+
+  /**
+   * タブを追加（Bolt 8: URL編集機能）
+   * @param eventId イベントID
+   * @param tab 追加するタブ
+   * @param index 追加位置（任意、指定しない場合は末尾）
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  async addTabToWorkState(
+    eventId: EventId,
+    tab: TabInfo,
+    index: number | undefined,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    // 既存のWorkStateを取得
+    const existingWorkState = await this.calendarEventRepository.findById(
+      eventId,
+      calendarId,
+      accessToken
+    );
+
+    if (!existingWorkState) {
+      throw new Error(`WorkState not found: ${eventId.value}`);
+    }
+
+    // タブを追加（イミュータビリティのため新しいインスタンスを返す）
+    const updatedWorkState = existingWorkState.addTab(tab, index);
+
+    // カレンダーに保存
+    await this.calendarEventRepository.update(updatedWorkState, calendarId, accessToken);
+
+    // Domain Eventを発行
+    await this.eventHandler.handleTabsUpdated(
+      new TabsUpdated(
+        eventId.value,
+        updatedWorkState.metadata?.tabs || [],
+        'add',
+        { addedTab: tab, toIndex: index },
+        new Date()
+      )
+    );
+  }
+
+  /**
+   * タブを削除（Bolt 8: URL編集機能）
+   * @param eventId イベントID
+   * @param tabIndex 削除するタブのインデックス
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  async removeTabFromWorkState(
+    eventId: EventId,
+    tabIndex: number,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    // 既存のWorkStateを取得
+    const existingWorkState = await this.calendarEventRepository.findById(
+      eventId,
+      calendarId,
+      accessToken
+    );
+
+    if (!existingWorkState) {
+      throw new Error(`WorkState not found: ${eventId.value}`);
+    }
+
+    // タブを削除（イミュータビリティのため新しいインスタンスを返す）
+    const updatedWorkState = existingWorkState.removeTab(tabIndex);
+
+    // カレンダーに保存
+    await this.calendarEventRepository.update(updatedWorkState, calendarId, accessToken);
+
+    // Domain Eventを発行
+    await this.eventHandler.handleTabsUpdated(
+      new TabsUpdated(
+        eventId.value,
+        updatedWorkState.metadata?.tabs || [],
+        'remove',
+        { removedTabIndex: tabIndex },
+        new Date()
+      )
+    );
+  }
+
+  /**
+   * タブの順序を変更（Bolt 8: URL編集機能）
+   * @param eventId イベントID
+   * @param fromIndex 移動元のインデックス
+   * @param toIndex 移動先のインデックス
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  async reorderWorkStateTabs(
+    eventId: EventId,
+    fromIndex: number,
+    toIndex: number,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    // 既存のWorkStateを取得
+    const existingWorkState = await this.calendarEventRepository.findById(
+      eventId,
+      calendarId,
+      accessToken
+    );
+
+    if (!existingWorkState) {
+      throw new Error(`WorkState not found: ${eventId.value}`);
+    }
+
+    // タブの順序を変更（イミュータビリティのため新しいインスタンスを返す）
+    const updatedWorkState = existingWorkState.reorderTabs(fromIndex, toIndex);
+
+    // カレンダーに保存
+    await this.calendarEventRepository.update(updatedWorkState, calendarId, accessToken);
+
+    // Domain Eventを発行
+    await this.eventHandler.handleTabsUpdated(
+      new TabsUpdated(
+        eventId.value,
+        updatedWorkState.metadata?.tabs || [],
+        'reorder',
+        { fromIndex, toIndex },
+        new Date()
+      )
+    );
   }
 }

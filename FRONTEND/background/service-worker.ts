@@ -16,6 +16,7 @@ import { TabRestoreManager } from '../src/application/services/tab-restore-manag
 import { RestoreService } from '../src/application/services/restore-service';
 import { RestoreRelationService } from '../src/application/services/restore-relation-service';
 import { EventId } from '../src/domain/value-objects/event-id';
+import { TabInfo } from '../src/domain/value-objects/tab-info';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -198,6 +199,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           }
           break;
 
+        case 'GET_WORK_STATE_DETAIL': // Bolt 8: URL編集機能
+          try {
+            const { eventId } = message.payload as { eventId: string };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // WorkStateを取得
+            const workState = await calendarEventRepository.findById(
+              EventId.create(eventId),
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            if (!workState) {
+              sendResponse({ success: false, error: 'WorkState not found' });
+              break;
+            }
+
+            // UI用にフォーマット
+            const tabsData = workState.metadata?.tabs.map(tab => ({
+              url: tab.url,
+              title: tab.title,
+              faviconUrl: tab.faviconUrl,
+              index: tab.index,
+            })) || [];
+            
+            sendResponse({ 
+              success: true, 
+              workState: {
+                eventId: workState.eventId.value,
+                title: workState.title.value,
+                tabs: tabsData,
+              }
+            });
+          } catch (error) {
+            logger.error('Failed to get work state detail', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
         case 'RESTORE_WORK_STATE':
           try {
             const { eventId } = message.payload as { eventId: string };
@@ -275,6 +324,154 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             });
           } catch (error) {
             logger.error('Failed to get restore relations', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'UPDATE_WORK_STATE_TABS': // Bolt 8: URL編集機能
+          try {
+            const { eventId, newTabs } = message.payload as { 
+              eventId: string; 
+              newTabs: Array<{ url: string; title: string; faviconUrl?: string; index: number }> 
+            };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // TabInfoに変換
+            const tabInfos = newTabs.map(tab => TabInfo.create({
+              url: tab.url,
+              title: tab.title,
+              faviconUrl: tab.faviconUrl,
+              index: tab.index,
+            }));
+
+            // タブリストを更新
+            await calendarEventService.updateWorkStateTabs(
+              EventId.create(eventId),
+              tabInfos,
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Failed to update work state tabs', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'ADD_TAB_TO_WORK_STATE': // Bolt 8: URL編集機能
+          try {
+            const { eventId, tab, index } = message.payload as { 
+              eventId: string; 
+              tab: { url: string; title: string; faviconUrl?: string; index: number };
+              index?: number;
+            };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // TabInfoに変換
+            const tabInfo = TabInfo.create({
+              url: tab.url,
+              title: tab.title,
+              faviconUrl: tab.faviconUrl,
+              index: tab.index,
+            });
+
+            // タブを追加
+            await calendarEventService.addTabToWorkState(
+              EventId.create(eventId),
+              tabInfo,
+              index,
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Failed to add tab to work state', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'REMOVE_TAB_FROM_WORK_STATE': // Bolt 8: URL編集機能
+          try {
+            const { eventId, tabIndex } = message.payload as { 
+              eventId: string; 
+              tabIndex: number;
+            };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // タブを削除
+            await calendarEventService.removeTabFromWorkState(
+              EventId.create(eventId),
+              tabIndex,
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Failed to remove tab from work state', error instanceof Error ? error : new Error(String(error)));
+            sendResponse({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'REORDER_WORK_STATE_TABS': // Bolt 8: URL編集機能
+          try {
+            const { eventId, fromIndex, toIndex } = message.payload as { 
+              eventId: string; 
+              fromIndex: number;
+              toIndex: number;
+            };
+            
+            // 認証状態を確認
+            const authState = await authRepository.getCurrent();
+            if (!authState || !authState.calendarId || !authState.accessToken) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+
+            // タブの順序を変更
+            await calendarEventService.reorderWorkStateTabs(
+              EventId.create(eventId),
+              fromIndex,
+              toIndex,
+              authState.calendarId,
+              authState.accessToken
+            );
+
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Failed to reorder work state tabs', error instanceof Error ? error : new Error(String(error)));
             sendResponse({ 
               success: false, 
               error: error instanceof Error ? error.message : String(error) 

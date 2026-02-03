@@ -9,6 +9,7 @@ import { TaskBookmarkDeleted } from '../../domain/events/task-bookmark-deleted';
 import { TaskBookmarkCorrupted } from '../../domain/events/task-bookmark-corrupted';
 import { RestoreRelationRecorded } from '../../domain/events/restore-relation-recorded';
 import { TabsCaptured } from '../../domain/events/tabs-captured';
+import { TabsUpdated } from '../../domain/events/tabs-updated';
 import { UIMessenger } from '../../infrastructure/adapters/ui-messenger';
 import { Logger } from '../../infrastructure/adapters/logger';
 
@@ -193,6 +194,33 @@ export class EventHandler {
         })),
         windowId: event.windowId,
         capturedAt: event.capturedAt,
+        tabCount: event.tabCount,
+      },
+    });
+  }
+
+  /**
+   * TabsUpdatedイベントを処理（Bolt 8: URL編集機能）
+   * @param event イベント
+   */
+  async handleTabsUpdated(event: TabsUpdated): Promise<void> {
+    this.logger.info(
+      `Tabs updated: ${event.eventId}, operation: ${event.operationType}, tabCount: ${event.tabCount}`
+    );
+    await this.uiMessenger.sendMessage({
+      type: 'TABS_UPDATED',
+      payload: {
+        eventId: event.eventId,
+        updatedTabs: event.updatedTabs.map((tab) => ({
+          url: tab.url,
+          title: tab.title,
+          faviconUrl: tab.faviconUrl,
+          index: tab.index,
+          extensions: tab.extensions,
+        })),
+        operationType: event.operationType,
+        operationDetails: event.operationDetails,
+        updatedAt: event.updatedAt,
         tabCount: event.tabCount,
       },
     });

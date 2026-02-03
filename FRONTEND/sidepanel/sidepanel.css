@@ -453,9 +453,206 @@ header h1 {
   margin-left: 8px;
 }
 
-.restore-button {
+.work-state-buttons {
+  display: flex;
+  gap: 8px;
   margin-top: 8px;
-  width: 100%;
+}
+
+.restore-button,
+.edit-button {
+  flex: 1;
   padding: 8px 12px;
   font-size: 13px;
+}
+
+/* URL編集モーダル（Bolt 8） */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #5f6368;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-error {
+  padding: 12px 16px;
+  margin: 0 16px 8px 16px;
+  background-color: #fde7e7;
+  border: 1px solid #f5c6c6;
+  border-radius: 4px;
+  color: #c62828;
+  font-size: 13px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.modal-footer .button {
+  flex: 1;
+}
+
+.url-edit-tabs-list {
+  margin-bottom: 24px;
+}
+
+.url-edit-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background-color: #fafafa;
+}
+
+.url-edit-order-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.url-edit-order-button {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #1a1a1a;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.url-edit-order-button:hover:not(:disabled) {
+  background-color: #f5f5f5;
+  border-color: #1a73e8;
+}
+
+.url-edit-order-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.url-edit-tab-info {
+  flex: 1 1 auto;
+  min-width: 120px; /* 最小幅を確保 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.url-edit-input {
+  width: 100%;
+  min-width: 80px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1a1a1a;
+  background-color: #fff;
+}
+
+.url-edit-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+}
+
+.url-edit-delete-button {
+  padding: 8px 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.url-edit-add-section {
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.url-edit-add-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1a1a1a;
+}
+
+.url-edit-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.url-edit-add-form .url-edit-input {
+  width: 100%;
+}
+
+.url-edit-add-form .button {
+  width: 100%;
 }

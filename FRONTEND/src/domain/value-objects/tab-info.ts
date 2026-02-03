@@ -90,6 +90,25 @@ export class TabInfo {
   }
 
   /**
+   * JSON形式にシリアライズ
+   * @returns JSONオブジェクト
+   */
+  toJSON(): Record<string, unknown> {
+    const json: Record<string, unknown> = {
+      url: this.url,
+      title: this.title,
+      index: this.index,
+    };
+    if (this.faviconUrl !== undefined) {
+      json.faviconUrl = this.faviconUrl;
+    }
+    if (this.extensions !== undefined) {
+      json.extensions = this.extensions;
+    }
+    return json;
+  }
+
+  /**
    * 等価性チェック
    * @param other 比較対象のTabInfo
    * @returns 等しい場合true

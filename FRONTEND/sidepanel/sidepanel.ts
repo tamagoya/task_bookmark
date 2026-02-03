@@ -1,3 +1,32 @@
+// HTMLエスケープ関数
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// モーダル内にエラーメッセージを表示
+function showModalError(message: string): void {
+  const errorElement = document.getElementById('url-edit-error');
+  if (errorElement) {
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+    // 3秒後に自動的に非表示
+    setTimeout(() => {
+      errorElement.style.display = 'none';
+    }, 3000);
+  }
+}
+
+// モーダル内のエラーメッセージをクリア
+function clearModalError(): void {
+  const errorElement = document.getElementById('url-edit-error');
+  if (errorElement) {
+    errorElement.style.display = 'none';
+    errorElement.textContent = '';
+  }
+}
+
 // 認証ボタンのイベントハンドラー
 document.getElementById('auth-button')?.addEventListener('click', async () => {
   const button = document.getElementById('auth-button') as HTMLButtonElement;
@@ -377,6 +406,18 @@ function renderWorkStateList(): void {
       item.appendChild(memo);
     }
     
+    // ボタンコンテナ
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'work-state-buttons';
+    
+    // 編集ボタン（Bolt 8）
+    const editButton = document.createElement('button');
+    editButton.className = 'button secondary edit-button';
+    editButton.textContent = '編集';
+    editButton.addEventListener('click', () => {
+      showUrlEditModal(workState.eventId, workState.title);
+    });
+    
     // 復元ボタン
     const restoreButton = document.createElement('button');
     restoreButton.className = 'button primary restore-button';
@@ -385,9 +426,12 @@ function renderWorkStateList(): void {
       restoreWorkState(workState.eventId);
     });
     
+    buttonContainer.appendChild(editButton);
+    buttonContainer.appendChild(restoreButton);
+    
     item.appendChild(header);
     item.appendChild(meta);
-    item.appendChild(restoreButton);
+    item.appendChild(buttonContainer);
     workStatesList.appendChild(item);
   });
 }
@@ -544,6 +588,288 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'TASK_BOOKMARK_CREATED') {
     // 新しい仕事状態が保存されたら一覧を再読み込み
     loadWorkStateEvents(currentFilter).catch(console.error);
+  }
+});
+
+// URL編集モーダルの状態
+let currentEditEventId: string | null = null;
+let currentEditTabs: Array<{ url: string; title: string; faviconUrl?: string; index: number }> = [];
+
+// URL編集モーダルを表示（Bolt 8）
+async function showUrlEditModal(eventId: string, title: string): Promise<void> {
+  const modal = document.getElementById('url-edit-modal');
+  const modalTitle = document.getElementById('url-edit-title');
+  const tabsList = document.getElementById('url-edit-tabs-list');
+  
+  if (!modal || !modalTitle || !tabsList) {
+    return;
+  }
+
+  currentEditEventId = eventId;
+  modalTitle.textContent = `URL編集: ${title}`;
+  
+  // 現在のタブ情報を取得
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'GET_WORK_STATE_DETAIL',
+      payload: { eventId },
+    });
+
+    if (response.success && response.workState) {
+      currentEditTabs = response.workState.tabs || [];
+      renderUrlEditTabsList();
+      clearModalError(); // エラーをクリア
+      modal.style.display = 'block';
+    } else {
+      showMessage(`詳細情報の取得に失敗しました: ${response.error || 'Unknown error'}`, 'error');
+    }
+  } catch (error) {
+    console.error('Failed to load work state detail:', error);
+    showMessage('詳細情報の取得に失敗しました', 'error');
+  }
+}
+
+// URL編集タブリストを表示（Bolt 8）
+function renderUrlEditTabsList(): void {
+  const tabsList = document.getElementById('url-edit-tabs-list');
+  if (!tabsList) {
+    return;
+  }
+
+  tabsList.innerHTML = '';
+  
+  currentEditTabs.forEach((tab, index) => {
+    const tabItem = document.createElement('div');
+    tabItem.className = 'url-edit-tab-item';
+    tabItem.setAttribute('data-index', index.toString());
+    
+    // 順序変更ボタン
+    const orderButtons = document.createElement('div');
+    orderButtons.className = 'url-edit-order-buttons';
+    
+    const moveUpButton = document.createElement('button');
+    moveUpButton.className = 'url-edit-order-button';
+    moveUpButton.textContent = '↑';
+    moveUpButton.disabled = index === 0;
+    moveUpButton.addEventListener('click', () => {
+      if (index > 0) {
+        moveTab(index, index - 1);
+      }
+    });
+    
+    const moveDownButton = document.createElement('button');
+    moveDownButton.className = 'url-edit-order-button';
+    moveDownButton.textContent = '↓';
+    moveDownButton.disabled = index === currentEditTabs.length - 1;
+    moveDownButton.addEventListener('click', () => {
+      if (index < currentEditTabs.length - 1) {
+        moveTab(index, index + 1);
+      }
+    });
+    
+    orderButtons.appendChild(moveUpButton);
+    orderButtons.appendChild(moveDownButton);
+    
+    // URL情報
+    const tabInfo = document.createElement('div');
+    tabInfo.className = 'url-edit-tab-info';
+    
+    // HTMLを使って入力フィールドを作成
+    const escapedUrl = escapeHtml(tab.url);
+    const escapedTitle = escapeHtml(tab.title || '');
+    tabInfo.innerHTML = `
+      <input type="text" class="url-edit-input" value="${escapedUrl}" placeholder="URL" data-field="url" data-index="${index}">
+      <input type="text" class="url-edit-input" value="${escapedTitle}" placeholder="ページタイトル（任意）" data-field="title" data-index="${index}">
+    `;
+    
+    // イベントリスナーを追加
+    const urlInput = tabInfo.querySelector('input[data-field="url"]') as HTMLInputElement;
+    const titleInput = tabInfo.querySelector('input[data-field="title"]') as HTMLInputElement;
+    
+    urlInput?.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      const idx = parseInt(input.getAttribute('data-index') || '0', 10);
+      currentEditTabs[idx].url = input.value;
+    });
+    
+    titleInput?.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      const idx = parseInt(input.getAttribute('data-index') || '0', 10);
+      currentEditTabs[idx].title = input.value;
+    });
+    
+    // 削除ボタン
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'button secondary url-edit-delete-button';
+    deleteButton.textContent = '削除';
+    deleteButton.disabled = currentEditTabs.length === 1; // 最後の1つは削除不可
+    deleteButton.addEventListener('click', () => {
+      if (currentEditTabs.length > 1) {
+        removeTabFromEdit(index);
+      } else {
+        showModalError('最後の1つのタブは削除できません');
+      }
+    });
+    
+    tabItem.appendChild(orderButtons);
+    tabItem.appendChild(tabInfo);
+    tabItem.appendChild(deleteButton);
+    tabsList.appendChild(tabItem);
+  });
+}
+
+// タブを移動（Bolt 8）
+function moveTab(fromIndex: number, toIndex: number): void {
+  const tab = currentEditTabs[fromIndex];
+  currentEditTabs.splice(fromIndex, 1);
+  currentEditTabs.splice(toIndex, 0, tab);
+  
+  // インデックスを再計算
+  currentEditTabs = currentEditTabs.map((t, i) => ({
+    ...t,
+    index: i,
+  }));
+  
+  renderUrlEditTabsList();
+}
+
+// タブを削除（Bolt 8）
+function removeTabFromEdit(index: number): void {
+  if (currentEditTabs.length <= 1) {
+    showModalError('最後の1つのタブは削除できません');
+    return;
+  }
+  
+  currentEditTabs.splice(index, 1);
+  
+  // インデックスを再計算
+  currentEditTabs = currentEditTabs.map((t, i) => ({
+    ...t,
+    index: i,
+  }));
+  
+  renderUrlEditTabsList();
+}
+
+// 新しいタブを追加（Bolt 8）
+function addTabToEdit(url: string, title: string): void {
+  if (!url.trim()) {
+    showModalError('URLを入力してください');
+    return;
+  }
+
+  const newTab = {
+    url: url.trim(),
+    title: title.trim() || url.trim(),
+    index: currentEditTabs.length,
+  };
+  
+  currentEditTabs.push(newTab);
+  
+  // インデックスを再計算
+  currentEditTabs = currentEditTabs.map((t, i) => ({
+    ...t,
+    index: i,
+  }));
+  
+  renderUrlEditTabsList();
+  
+  // 入力欄をクリア
+  const urlInput = document.getElementById('url-edit-new-url') as HTMLInputElement;
+  const titleInput = document.getElementById('url-edit-new-title') as HTMLInputElement;
+  if (urlInput) urlInput.value = '';
+  if (titleInput) titleInput.value = '';
+}
+
+// URL編集を保存（Bolt 8）
+async function saveUrlEdit(): Promise<void> {
+  if (!currentEditEventId) {
+    return;
+  }
+
+  if (currentEditTabs.length === 0) {
+    showModalError('タブが1つ以上必要です');
+    return;
+  }
+
+  // バリデーション: URLが有効かチェック
+  for (const tab of currentEditTabs) {
+    if (!tab.url || !tab.url.trim()) {
+      showModalError('すべてのURLを入力してください');
+      return;
+    }
+  }
+
+  const saveButton = document.getElementById('url-edit-save') as HTMLButtonElement;
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = '保存中...';
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'UPDATE_WORK_STATE_TABS',
+      payload: {
+        eventId: currentEditEventId,
+        newTabs: currentEditTabs.map(tab => ({
+          url: tab.url,
+          title: tab.title || tab.url,
+          faviconUrl: tab.faviconUrl,
+          index: tab.index,
+        })),
+      },
+    });
+
+    if (response.success) {
+      showMessage('URLを更新しました', 'success');
+      closeUrlEditModal();
+      // 一覧を再読み込み
+      await loadWorkStateEvents(currentFilter);
+    } else {
+      showModalError(`更新に失敗しました: ${response.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Failed to save URL edit:', error);
+    showModalError('更新に失敗しました');
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = '保存';
+    }
+  }
+}
+
+// URL編集モーダルを閉じる（Bolt 8）
+function closeUrlEditModal(): void {
+  const modal = document.getElementById('url-edit-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  currentEditEventId = null;
+  currentEditTabs = [];
+  clearModalError(); // エラーをクリア
+}
+
+// URL編集モーダルのイベントハンドラー（Bolt 8）
+document.getElementById('url-edit-close')?.addEventListener('click', closeUrlEditModal);
+document.getElementById('url-edit-cancel')?.addEventListener('click', closeUrlEditModal);
+document.getElementById('url-edit-save')?.addEventListener('click', saveUrlEdit);
+document.getElementById('url-edit-add-button')?.addEventListener('click', () => {
+  const urlInput = document.getElementById('url-edit-new-url') as HTMLInputElement;
+  const titleInput = document.getElementById('url-edit-new-title') as HTMLInputElement;
+  if (urlInput && titleInput) {
+    addTabToEdit(urlInput.value, titleInput.value);
+  }
+});
+
+// Enterキーで追加
+document.getElementById('url-edit-new-url')?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    const urlInput = document.getElementById('url-edit-new-url') as HTMLInputElement;
+    const titleInput = document.getElementById('url-edit-new-title') as HTMLInputElement;
+    if (urlInput && titleInput) {
+      addTabToEdit(urlInput.value, titleInput.value);
+    }
   }
 });
 
