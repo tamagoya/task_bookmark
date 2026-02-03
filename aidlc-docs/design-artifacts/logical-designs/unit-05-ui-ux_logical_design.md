@@ -12,6 +12,8 @@
 3. **Observer パターン**: UI状態の更新とイベント通知（簡易実装、コールバック関数）
 4. **Adapter パターン**: Service Workerとの通信（UIMessenger）
 5. **Service Layer パターン**: 前後関係取得ロジックの集約（RestoreRelationService）
+6. **Strategy パターン（Bolt 9）**: エラー分類とメッセージ生成の戦略（ErrorHandlingService）
+7. **Retry パターン（Bolt 9）**: リトライ処理（既存のRetryHandlerを拡張、ドメイン層でRetryPolicyを定義）
 
 ---
 
@@ -210,10 +212,35 @@
 - エラーメッセージの表示
 - リトライボタン
 - エラーの種類に応じた適切なメッセージ
+- **エラー分類とメッセージ生成（Bolt 9で拡張）**: `ErrorHandlingService`を使用してエラーを分類し、ユーザーフレンドリーなメッセージを生成
 
 **実装ファイル**:
-- `FRONTEND/sidepanel/sidepanel.html` (message-section)
-- `FRONTEND/sidepanel/sidepanel.ts` (showMessage)
+- `FRONTEND/sidepanel/sidepanel.html` (message-section, url-edit-error)
+- `FRONTEND/sidepanel/sidepanel.ts` (showMessage, showModalError)
+
+**拡張内容（Bolt 9）**:
+- `ErrorHandlingService`を使用してエラーを分類
+- `ErrorCode`、`ErrorMessage`、`ErrorSeverity`を使用
+- リトライ可能なエラーの場合、`RetryPolicy`に基づいてリトライボタンを表示
+
+---
+
+#### Accessibility Component（新規、Bolt 9）
+**責任**: アクセシビリティ要件の実装
+
+**主要機能**:
+- ARIAラベルの設定
+- キーボードショートカットの実装
+- フォーカス管理
+- スクリーンリーダー対応
+
+**実装ファイル**:
+- `FRONTEND/sidepanel/sidepanel.html` (aria-label属性)
+- `FRONTEND/sidepanel/sidepanel.ts` (キーボードイベントハンドラー)
+- `FRONTEND/sidepanel/sidepanel.css` (フォーカススタイル)
+
+**依存関係**:
+- Domain Layer (AriaLabel, KeyboardShortcut)
 
 ---
 
@@ -258,6 +285,43 @@
 
 ---
 
+#### ErrorHandlingService（新規、Bolt 9）
+**責任**: エラーの分類、メッセージ生成、リトライ可能性の判定
+
+**主要メソッド**:
+- `classifyError(errorCode: ErrorCode): { category: ErrorCategory, severity: ErrorSeverity }`
+  - エラーを分類し、カテゴリと重要度を返す
+  - ビジネスルール: エラーコードに基づいて分類
+  
+- `generateUserMessage(errorCode: ErrorCode, context?: Record<string, unknown>): ErrorMessage`
+  - エラーコードからユーザーフレンドリーなメッセージを生成
+  - ビジネスルール: エラーコードとコンテキストに基づいてメッセージを生成
+  
+- `isRetryable(errorCode: ErrorCode, retryPolicy: RetryPolicy): boolean`
+  - エラーがリトライ可能かどうかを判定
+  - ビジネスルール: リトライポリシーに基づいて判定
+
+**実装ファイル**:
+- `FRONTEND/src/application/services/error-handling-service.ts`（新規）
+
+**依存関係**:
+- Domain Layer (ErrorCode, ErrorCategory, ErrorSeverity, ErrorMessage, RetryPolicy)
+- Infrastructure Layer (Logger)
+
+**使用例**:
+```typescript
+// エラーを分類
+const { category, severity } = errorHandlingService.classifyError(errorCode);
+
+// ユーザーフレンドリーなメッセージを生成
+const errorMessage = errorHandlingService.generateUserMessage(errorCode, { operation: '保存' });
+
+// リトライ可能かどうかを判定
+const retryable = errorHandlingService.isRetryable(errorCode, retryPolicy);
+```
+
+---
+
 ### 3. ドメイン層 (Domain Layer)
 
 **責任**: ビジネスロジックとドメインモデル
@@ -295,6 +359,83 @@
 
 **実装ファイル**:
 - `FRONTEND/src/domain/value-objects/restore-chain.ts`（新規、オプション）
+
+---
+
+#### ErrorCode Value Object（新規、Bolt 9）
+**責任**: エラーコードを表す不変オブジェクト
+
+**属性**:
+- `code: string` - エラーコード（例: "AUTH_FAILED", "NETWORK_ERROR"）
+- `category: ErrorCategory` - エラーのカテゴリ
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/error-code.ts`（新規）
+
+---
+
+#### ErrorMessage Value Object（新規、Bolt 9）
+**責任**: ユーザーフレンドリーなエラーメッセージを表す不変オブジェクト
+
+**属性**:
+- `message: string` - ユーザー向けメッセージ（日本語）
+- `technicalDetails?: string` - 技術的な詳細（デバッグ用、オプション）
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/error-message.ts`（新規）
+
+---
+
+#### ErrorSeverity Value Object（新規、Bolt 9）
+**責任**: エラーの重要度を表す不変オブジェクト
+
+**値**:
+- `INFO` - 情報（処理は続行可能）
+- `WARNING` - 警告（処理は続行可能だが注意が必要）
+- `ERROR` - エラー（処理は失敗したが、リトライ可能な場合がある）
+- `CRITICAL` - 致命的（処理は失敗し、リトライ不可能）
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/error-severity.ts`（新規）
+
+---
+
+#### RetryPolicy Value Object（新規、Bolt 9）
+**責任**: リトライポリシーを表す不変オブジェクト
+
+**属性**:
+- `maxRetries: number` - 最大リトライ回数（デフォルト: 3）
+- `baseDelayMs: number` - ベース遅延時間（ミリ秒、デフォルト: 1000）
+- `backoffStrategy: BackoffStrategy` - バックオフ戦略（LINEAR, EXPONENTIAL, FIXED）
+- `retryableErrorCodes: ErrorCode[]` - リトライ可能なエラーコードのリスト
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/retry-policy.ts`（新規）
+
+---
+
+#### AriaLabel Value Object（新規、Bolt 9）
+**責任**: ARIAラベルを表す不変オブジェクト
+
+**属性**:
+- `label: string` - ARIAラベル（日本語）
+- `description?: string` - 追加の説明（オプション）
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/aria-label.ts`（新規）
+
+---
+
+#### KeyboardShortcut Value Object（新規、Bolt 9）
+**責任**: キーボードショートカットを表す不変オブジェクト
+
+**属性**:
+- `key: string` - キー（例: "Enter", "Escape", "Ctrl+S"）
+- `action: string` - アクション名（例: "保存", "キャンセル"）
+- `description?: string` - 説明（オプション）
+
+**実装ファイル**:
+- `FRONTEND/src/domain/value-objects/keyboard-shortcut.ts`（新規）
 
 ---
 
@@ -358,10 +499,29 @@
 - リトライ機能の提供
 - エラーの種類に応じた適切なメッセージ
 
-### アクセシビリティ
-- キーボード操作のサポート
-- ARIAラベルの設定
-- 色のコントラスト（WCAG 2.1 Level AA基準）
+### アクセシビリティ（Bolt 9で拡張）
+
+#### キーボード操作
+- **すべての主要機能をキーボードで操作可能**: Tabキーでフォーカス移動、Enterキーで実行
+- **ショートカットキー**: 
+  - `Ctrl+S` / `Cmd+S`: 保存
+  - `Escape`: モーダルを閉じる
+  - `Enter`: フォーム送信、ボタン実行
+- **フォーカス管理**: エラー発生時、適切な要素にフォーカスを移動
+
+#### ARIAラベル
+- **すべてのUI要素にARIAラベルを設定**: ボタン、入力欄、エラーメッセージなど
+- **ラベル形式**: `AriaLabel` Value Objectを使用して一貫性を保つ
+- **動的ラベル**: コンテキストに応じて動的にラベルを生成
+
+#### スクリーンリーダー対応
+- **セマンティックHTML**: 適切なHTML要素を使用（`<button>`, `<input>`, `<label>`など）
+- **aria-live**: エラーメッセージや成功メッセージに`aria-live`属性を設定
+- **aria-describedby**: 入力欄にエラーメッセージを関連付ける
+
+#### 色のコントラスト
+- **WCAG 2.1 Level AA基準**: コントラスト比4.5:1以上
+- **色だけに依存しない**: エラー表示は色だけでなく、アイコンやテキストでも表現
 
 ---
 
@@ -373,14 +533,51 @@
 
 ---
 
-## エラーハンドリング
+## エラーハンドリング（Bolt 9で拡張）
+
+### エラーハンドリングアーキテクチャ
+
+Bolt 9では、エラーハンドリングを統一化し、ドメイン層でエラー分類とメッセージ生成を行います。
+
+#### エラーハンドリングフロー
+
+1. **エラー発生**: インフラストラクチャ層またはアプリケーション層でエラーが発生
+2. **エラー分類**: `ErrorHandlingService`がエラーコードからエラーのカテゴリと重要度を判定
+3. **メッセージ生成**: `ErrorHandlingService`がユーザーフレンドリーなメッセージを生成
+4. **Domain Event発行**: `ErrorOccurred`イベントを発行
+5. **UI表示**: プレゼンテーション層でエラーメッセージを表示
+6. **リトライ判定**: リトライ可能なエラーの場合、`RetryPolicy`に基づいてリトライ
+
+#### エラー分類（Bolt 9）
+
+- **認証エラー**: `AUTH_FAILED`, `TOKEN_EXPIRED` → `AUTHENTICATION`カテゴリ、`ERROR`重要度
+- **ネットワークエラー**: `NETWORK_ERROR`, `TIMEOUT`, `OFFLINE` → `NETWORK`カテゴリ、`ERROR`重要度（リトライ可能）
+- **APIエラー**: `RATE_LIMIT_EXCEEDED`, `API_ERROR` → `API`カテゴリ、`WARNING`重要度（リトライ可能）
+- **バリデーションエラー**: `VALIDATION_ERROR`, `INVALID_INPUT` → `VALIDATION`カテゴリ、`WARNING`重要度（リトライ不可能）
+- **データエラー**: `DATA_CORRUPTED` → `DATA`カテゴリ、`CRITICAL`重要度（リトライ不可能）
+
+#### リトライポリシー（Bolt 9）
+
+- **デフォルトポリシー**: 最大3回、ベース遅延1000ms、指数バックオフ
+- **リトライ可能なエラー**: ネットワークエラー、APIエラー（レート制限を除く）
+- **リトライ不可能なエラー**: 認証エラー、バリデーションエラー、データエラー
+- **レート制限エラー**: リトライ可能だが、`Retry-After`ヘッダーに基づいて待機時間を調整
+
+#### エラーメッセージ表示（Bolt 9）
+
+- **ユーザーフレンドリー**: 技術的な詳細は含めず、ユーザーが理解できる日本語で記述
+- **コンテキスト対応**: エラーコードとコンテキストに基づいて適切なメッセージを生成
+- **アクショナブル**: 可能な限り、ユーザーが取るべきアクションを提示
+- **表示場所**: 
+  - モーダル内エラー: モーダル内に表示（例: URL編集モーダル）
+  - グローバルエラー: サイドパネルのメッセージセクションに表示
 
 ### 前後関係取得時のエラー（Bolt 7）
 
 - **存在しないイベントID**: 「前後関係を取得できませんでした」と表示
 - **削除されたイベント**: 「削除済み」と表示
-- **ネットワークエラー**: 「ネットワークエラーが発生しました。再試行してください。」と表示
-- **認証エラー**: 「認証に失敗しました。もう一度お試しください。」と表示
+- **ネットワークエラー**: 「ネットワークエラーが発生しました。再試行してください。」と表示（Bolt 9で統一化）
+- **認証エラー**: 「認証に失敗しました。もう一度お試しください。」と表示（Bolt 9で統一化）
 
 ---
 
@@ -398,6 +595,10 @@
 - `RestoreRelationService`のテスト
 - `RestoreRelation` Value Objectのテスト
 - フォームバリデーションのテスト
+- **`ErrorHandlingService`のテスト（Bolt 9）**
+- **エラー分類とメッセージ生成のテスト（Bolt 9）**
+- **リトライポリシーのテスト（Bolt 9）**
+- **アクセシビリティコンポーネントのテスト（Bolt 9）**
 
 ### 統合テスト
 - 実際のChrome環境でのUIテスト
@@ -464,10 +665,14 @@
 - [ ] レスポンシブデザインが適切に動作する
 - [ ] **前後関係が可視化される（Bolt 7）**
 - [ ] **一覧表示に前後関係インジケーターが表示される（Bolt 7）**
+- [ ] **すべてのエラーが適切に分類され、ユーザーフレンドリーなメッセージが表示される（Bolt 9）**
+- [ ] **リトライ機能が正常に動作する（Bolt 9）**
+- [ ] **キーボード操作が可能になる（Bolt 9）**
+- [ ] **スクリーンリーダーに対応する（Bolt 9）**
 - [ ] ユニットテストのカバレッジが80%以上
 
 ---
 
 **作成日**: 2026-01-22  
-**最終更新**: 2026-01-22  
-**ステータス**: 設計完了（Bolt 7対応）
+**最終更新**: 2026-02-03  
+**ステータス**: 設計完了（Bolt 7, Bolt 9対応）
