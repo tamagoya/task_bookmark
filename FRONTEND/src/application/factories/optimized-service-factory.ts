@@ -16,6 +16,9 @@ import { OptimizedTabCaptureService } from '../services/optimized-tab-capture-se
 import { OptimizedRestoreService } from '../services/optimized-restore-service';
 import { OptimizedTabRestoreManager } from '../services/optimized-tab-restore-manager';
 import { CalendarEventService } from '../services/calendar-event-service';
+import { TabCaptureService } from '../services/tab-capture-service';
+import { RestoreService } from '../services/restore-service';
+import { TabRestoreManager } from '../services/tab-restore-manager';
 
 /**
  * OptimizedServiceFactory
@@ -57,14 +60,21 @@ export class OptimizedServiceFactory {
 
   /**
    * 最適化されたCalendarEventServiceを作成
+   * ベースのCalendarEventServiceをラップしてパフォーマンス監視とキャッシュを追加
    */
   createOptimizedCalendarEventService(
     calendarEventRepository: CalendarEventRepository,
     eventHandler: EventHandler
   ): OptimizedCalendarEventService {
-    return new OptimizedCalendarEventService(
+    // ベースサービスを作成
+    const baseService = new CalendarEventService(
       calendarEventRepository,
-      eventHandler,
+      eventHandler
+    );
+
+    // ベースサービスをラップして最適化機能を追加
+    return new OptimizedCalendarEventService(
+      baseService,
       this.performanceInterceptor,
       this.cacheDecorator
     );
@@ -72,17 +82,25 @@ export class OptimizedServiceFactory {
 
   /**
    * 最適化されたTabCaptureServiceを作成
+   * ベースのTabCaptureServiceをラップしてパフォーマンス監視とキャッシュを追加
    */
   createOptimizedTabCaptureService(
     tabsAdapter: ChromeTabsAdapter,
     windowsAdapter: ChromeWindowsAdapter,
     eventHandler: EventHandler
   ): OptimizedTabCaptureService {
-    return new OptimizedTabCaptureService(
+    // ベースサービスを作成
+    const baseService = new TabCaptureService(
       tabsAdapter,
       windowsAdapter,
       this.logger,
-      eventHandler,
+      eventHandler
+    );
+
+    // ベースサービスをラップして最適化機能を追加
+    return new OptimizedTabCaptureService(
+      baseService,
+      windowsAdapter,
       this.performanceInterceptor,
       this.cacheDecorator
     );
@@ -90,31 +108,55 @@ export class OptimizedServiceFactory {
 
   /**
    * 最適化されたRestoreServiceを作成
+   * ベースのRestoreServiceをラップしてパフォーマンス監視を追加
    */
   createOptimizedRestoreService(
     chromeWindowsAdapter: ChromeWindowsAdapter,
     chromeTabsAdapter: ChromeTabsAdapter,
     calendarEventService: CalendarEventService,
-    tabRestoreManager: OptimizedTabRestoreManager
+    _optimizedTabRestoreManager: OptimizedTabRestoreManager
   ): OptimizedRestoreService {
-    return new OptimizedRestoreService(
+    // 将来の拡張用に保持（現在はbaseServiceが独自のTabRestoreManagerを使用）
+    void _optimizedTabRestoreManager;
+
+    // TabRestoreManagerを作成（OptimizedTabRestoreManagerの内部で使用）
+    const baseTabRestoreManager = new TabRestoreManager(
+      chromeTabsAdapter,
+      this.logger
+    );
+
+    // ベースのRestoreServiceを作成
+    const baseService = new RestoreService(
       chromeWindowsAdapter,
       chromeTabsAdapter,
       calendarEventService,
-      tabRestoreManager,
-      this.logger,
+      baseTabRestoreManager,
+      this.logger
+    );
+
+    // ベースサービスをラップして最適化機能を追加
+    return new OptimizedRestoreService(
+      baseService,
       this.performanceInterceptor
     );
   }
 
   /**
    * 最適化されたTabRestoreManagerを作成
+   * ベースのTabRestoreManagerをラップしてパフォーマンス監視とバッチ最適化を追加
    */
   createOptimizedTabRestoreManager(
     chromeTabsAdapter: ChromeTabsAdapter
   ): OptimizedTabRestoreManager {
-    return new OptimizedTabRestoreManager(
+    // ベースのTabRestoreManagerを作成
+    const baseManager = new TabRestoreManager(
       chromeTabsAdapter,
+      this.logger
+    );
+
+    // ベースマネージャーをラップして最適化機能を追加
+    return new OptimizedTabRestoreManager(
+      baseManager,
       this.logger,
       this.performanceInterceptor,
       this.performanceOptimizationService

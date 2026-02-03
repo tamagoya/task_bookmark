@@ -1,4 +1,5 @@
 import { OptimizedTabRestoreManager } from '../../../src/application/services/optimized-tab-restore-manager';
+import { TabRestoreManager } from '../../../src/application/services/tab-restore-manager';
 import { ChromeTabsAdapter } from '../../../src/infrastructure/adapters/chrome-tabs-adapter';
 import { Logger } from '../../../src/infrastructure/adapters/logger';
 import { PerformanceInterceptor } from '../../../src/application/decorators/performance-interceptor';
@@ -35,8 +36,12 @@ describe('OptimizedTabRestoreManager', () => {
     
     optimizationService = new PerformanceOptimizationService();
 
+    // ベースのTabRestoreManagerを作成
+    const baseManager = new TabRestoreManager(mockTabsAdapter, logger);
+
+    // 最適化されたマネージャーを作成
     manager = new OptimizedTabRestoreManager(
-      mockTabsAdapter,
+      baseManager,
       logger,
       performanceInterceptor,
       optimizationService
