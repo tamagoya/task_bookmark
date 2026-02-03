@@ -1,3 +1,11 @@
+// Bolt 9: エラーハンドリングサービスのインポート
+import { ErrorHandlingService } from '../src/application/services/error-handling-service';
+import { ErrorCode } from '../src/domain/value-objects/error-code';
+import { ErrorCategory } from '../src/domain/value-objects/error-category';
+
+// エラーハンドリングサービスのインスタンス
+const errorHandlingService = new ErrorHandlingService();
+
 // HTMLエスケープ関数
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
@@ -6,16 +14,33 @@ function escapeHtml(text: string): string {
 }
 
 // モーダル内にエラーメッセージを表示
-function showModalError(message: string): void {
+function showModalError(message: string, severity: 'error' | 'warning' | 'info' = 'error'): void {
   const errorElement = document.getElementById('url-edit-error');
   if (errorElement) {
     errorElement.textContent = message;
+    errorElement.className = `modal-error-message ${severity}`;
     errorElement.style.display = 'block';
-    // 3秒後に自動的に非表示
-    setTimeout(() => {
-      errorElement.style.display = 'none';
-    }, 3000);
+    
+    // 警告やエラーの場合は3秒後に自動的に非表示
+    if (severity === 'error' || severity === 'warning') {
+      setTimeout(() => {
+        errorElement.style.display = 'none';
+      }, 3000);
+    }
   }
+}
+
+// Bolt 9: ErrorCodeからエラーメッセージを生成してモーダルに表示
+function showModalErrorFromCode(errorCode: ErrorCode, context?: Record<string, unknown>): void {
+  const errorMessage = errorHandlingService.generateUserMessage(errorCode, context);
+  const classification = errorHandlingService.classifyError(errorCode);
+  
+  // 重要度に応じて表示スタイルを変更
+  const severity = classification.severity === 'CRITICAL' ? 'error' : 
+                   classification.severity === 'ERROR' ? 'error' : 
+                   classification.severity === 'WARNING' ? 'warning' : 'info';
+  
+  showModalError(errorMessage.message, severity);
 }
 
 // モーダル内のエラーメッセージをクリア
@@ -38,11 +63,15 @@ document.getElementById('auth-button')?.addEventListener('click', async () => {
     if (response.success) {
       await checkAuthStatus();
     } else {
-      alert(`認証に失敗しました: ${response.error}`);
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('AUTH_FAILED', ErrorCategory.AUTHENTICATION);
+      showMessageFromErrorCode(errorCode, { operation: '認証' });
     }
   } catch (error) {
     console.error('Authentication failed:', error);
-    alert('認証に失敗しました');
+    // Bolt 9: ErrorHandlingServiceを使用
+    const errorCode = ErrorCode.create('AUTH_FAILED', ErrorCategory.AUTHENTICATION);
+    showMessageFromErrorCode(errorCode, { operation: '認証' });
   } finally {
     button.disabled = false;
     button.textContent = '認証する';
@@ -59,11 +88,15 @@ document.getElementById('logout-button')?.addEventListener('click', async () => 
     if (response.success) {
       await checkAuthStatus();
     } else {
-      alert(`ログアウトに失敗しました: ${response.error}`);
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('AUTH_FAILED', ErrorCategory.AUTHENTICATION);
+      showMessageFromErrorCode(errorCode, { operation: 'ログアウト' });
     }
   } catch (error) {
     console.error('Logout failed:', error);
-    alert('ログアウトに失敗しました');
+    // Bolt 9: ErrorHandlingServiceを使用
+    const errorCode = ErrorCode.create('AUTH_FAILED', ErrorCategory.AUTHENTICATION);
+    showMessageFromErrorCode(errorCode, { operation: 'ログアウト' });
   } finally {
     button.disabled = false;
   }
@@ -142,7 +175,9 @@ async function saveWorkState(event: Event): Promise<void> {
 
   // バリデーション
   if (!title) {
-    showMessage('仕事名を入力してください', 'error');
+    // Bolt 9: ErrorHandlingServiceを使用
+    const errorCode = ErrorCode.create('MISSING_REQUIRED_FIELD', ErrorCategory.VALIDATION);
+    showMessageFromErrorCode(errorCode);
     return;
   }
 
@@ -171,11 +206,15 @@ async function saveWorkState(event: Event): Promise<void> {
       // タブ一覧を再読み込み
       await loadCurrentTabs();
     } else {
-      showMessage(`保存に失敗しました: ${response.error || 'Unknown error'}`, 'error');
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('API_ERROR', ErrorCategory.API);
+      showMessageFromErrorCode(errorCode, { operation: '保存' });
     }
   } catch (error) {
     console.error('Failed to save work state:', error);
-    showMessage('保存に失敗しました', 'error');
+    // Bolt 9: ErrorHandlingServiceを使用（ネットワークエラーの可能性）
+    const errorCode = ErrorCode.create('NETWORK_ERROR', ErrorCategory.NETWORK);
+    showMessageFromErrorCode(errorCode, { operation: '保存' });
   } finally {
     if (saveButton) {
       saveButton.disabled = false;
@@ -185,7 +224,7 @@ async function saveWorkState(event: Event): Promise<void> {
 }
 
 // メッセージ表示
-function showMessage(text: string, type: 'success' | 'error' | 'info'): void {
+function showMessage(text: string, type: 'success' | 'error' | 'info' | 'warning'): void {
   const messageSection = document.getElementById('message-section');
   const message = document.getElementById('message');
 
@@ -206,6 +245,19 @@ function showMessage(text: string, type: 'success' | 'error' | 'info'): void {
       }
     }, 3000);
   }
+}
+
+// Bolt 9: ErrorCodeからエラーメッセージを生成して表示
+function showMessageFromErrorCode(errorCode: ErrorCode, context?: Record<string, unknown>): void {
+  const errorMessage = errorHandlingService.generateUserMessage(errorCode, context);
+  const classification = errorHandlingService.classifyError(errorCode);
+  
+  // 重要度に応じて表示タイプを変更
+  const type = classification.severity === 'CRITICAL' ? 'error' : 
+               classification.severity === 'ERROR' ? 'error' : 
+               classification.severity === 'WARNING' ? 'warning' : 'info';
+  
+  showMessage(errorMessage.message, type);
 }
 
 // 保存済み仕事一覧の型定義
@@ -458,11 +510,15 @@ async function restoreWorkState(eventId: string): Promise<void> {
     if (response.success) {
       showMessage(`仕事状態を復元しました（${response.tabCount}タブ）`, 'success');
     } else {
-      throw new Error(response.error || 'Failed to restore work state');
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('API_ERROR', ErrorCategory.API);
+      showMessageFromErrorCode(errorCode, { operation: '復元' });
     }
   } catch (error) {
     console.error('Failed to restore work state:', error);
-    showMessage('復元に失敗しました', 'error');
+    // Bolt 9: ErrorHandlingServiceを使用（ネットワークエラーの可能性）
+    const errorCode = ErrorCode.create('NETWORK_ERROR', ErrorCategory.NETWORK);
+    showMessageFromErrorCode(errorCode, { operation: '復元' });
   }
 }
 
@@ -621,11 +677,15 @@ async function showUrlEditModal(eventId: string, title: string): Promise<void> {
       clearModalError(); // エラーをクリア
       modal.style.display = 'block';
     } else {
-      showMessage(`詳細情報の取得に失敗しました: ${response.error || 'Unknown error'}`, 'error');
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('API_ERROR', ErrorCategory.API);
+      showMessageFromErrorCode(errorCode, { operation: '詳細情報の取得' });
     }
   } catch (error) {
     console.error('Failed to load work state detail:', error);
-    showMessage('詳細情報の取得に失敗しました', 'error');
+    // Bolt 9: ErrorHandlingServiceを使用（ネットワークエラーの可能性）
+    const errorCode = ErrorCode.create('NETWORK_ERROR', ErrorCategory.NETWORK);
+    showMessageFromErrorCode(errorCode, { operation: '詳細情報の取得' });
   }
 }
 
@@ -707,7 +767,10 @@ function renderUrlEditTabsList(): void {
       if (currentEditTabs.length > 1) {
         removeTabFromEdit(index);
       } else {
-        showModalError('最後の1つのタブは削除できません');
+        // Bolt 9: ErrorHandlingServiceを使用
+        const errorCode = ErrorCode.create('VALIDATION_ERROR', ErrorCategory.VALIDATION);
+        const errorMessage = errorHandlingService.generateUserMessage(errorCode);
+        showModalError('最後の1つのタブは削除できません', 'warning');
       }
     });
     
@@ -736,7 +799,8 @@ function moveTab(fromIndex: number, toIndex: number): void {
 // タブを削除（Bolt 8）
 function removeTabFromEdit(index: number): void {
   if (currentEditTabs.length <= 1) {
-    showModalError('最後の1つのタブは削除できません');
+    // Bolt 9: ErrorHandlingServiceを使用
+    showModalError('最後の1つのタブは削除できません', 'warning');
     return;
   }
   
@@ -754,7 +818,9 @@ function removeTabFromEdit(index: number): void {
 // 新しいタブを追加（Bolt 8）
 function addTabToEdit(url: string, title: string): void {
   if (!url.trim()) {
-    showModalError('URLを入力してください');
+    // Bolt 9: ErrorHandlingServiceを使用
+    const errorCode = ErrorCode.create('MISSING_REQUIRED_FIELD', ErrorCategory.VALIDATION);
+    showModalErrorFromCode(errorCode);
     return;
   }
 
@@ -788,14 +854,18 @@ async function saveUrlEdit(): Promise<void> {
   }
 
   if (currentEditTabs.length === 0) {
-    showModalError('タブが1つ以上必要です');
+    // Bolt 9: ErrorHandlingServiceを使用
+    const errorCode = ErrorCode.create('VALIDATION_ERROR', ErrorCategory.VALIDATION);
+    showModalErrorFromCode(errorCode);
     return;
   }
 
   // バリデーション: URLが有効かチェック
   for (const tab of currentEditTabs) {
     if (!tab.url || !tab.url.trim()) {
-      showModalError('すべてのURLを入力してください');
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('MISSING_REQUIRED_FIELD', ErrorCategory.VALIDATION);
+      showModalErrorFromCode(errorCode);
       return;
     }
   }
@@ -826,11 +896,15 @@ async function saveUrlEdit(): Promise<void> {
       // 一覧を再読み込み
       await loadWorkStateEvents(currentFilter);
     } else {
-      showModalError(`更新に失敗しました: ${response.error || 'Unknown error'}`);
+      // Bolt 9: ErrorHandlingServiceを使用
+      const errorCode = ErrorCode.create('API_ERROR', ErrorCategory.API);
+      showModalErrorFromCode(errorCode, { operation: '更新' });
     }
   } catch (error) {
     console.error('Failed to save URL edit:', error);
-    showModalError('更新に失敗しました');
+    // Bolt 9: ErrorHandlingServiceを使用（ネットワークエラーの可能性）
+    const errorCode = ErrorCode.create('NETWORK_ERROR', ErrorCategory.NETWORK);
+    showModalErrorFromCode(errorCode, { operation: '更新' });
   } finally {
     if (saveButton) {
       saveButton.disabled = false;
@@ -869,6 +943,35 @@ document.getElementById('url-edit-new-url')?.addEventListener('keypress', (e) =>
     const titleInput = document.getElementById('url-edit-new-title') as HTMLInputElement;
     if (urlInput && titleInput) {
       addTabToEdit(urlInput.value, titleInput.value);
+    }
+  }
+});
+
+// Bolt 9: キーボードショートカット
+document.addEventListener('keydown', (e) => {
+  // Ctrl+S / Cmd+S: 保存フォームがある場合に保存を実行
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    const saveButton = document.getElementById('save-button') as HTMLButtonElement;
+    if (saveButton && saveButton.style.display !== 'none' && !saveButton.disabled) {
+      saveButton.click();
+    }
+  }
+  
+  // Esc: モーダルを閉じる
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('url-edit-modal');
+    if (modal && modal.style.display !== 'none') {
+      closeUrlEditModal();
+    }
+  }
+  
+  // Ctrl+/ / Cmd+/: 検索フィールドにフォーカス
+  if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+    e.preventDefault();
+    const searchInput = document.getElementById('work-states-search') as HTMLInputElement;
+    if (searchInput && searchInput.style.display !== 'none') {
+      searchInput.focus();
     }
   }
 });

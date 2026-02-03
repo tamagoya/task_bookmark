@@ -17,6 +17,10 @@ import { RestoreService } from '../src/application/services/restore-service';
 import { RestoreRelationService } from '../src/application/services/restore-relation-service';
 import { EventId } from '../src/domain/value-objects/event-id';
 import { TabInfo } from '../src/domain/value-objects/tab-info';
+// Bolt 9: エラーハンドリング
+import { ErrorHandlingService } from '../src/application/services/error-handling-service';
+import { ErrorCode } from '../src/domain/value-objects/error-code';
+import { ErrorCategory } from '../src/domain/value-objects/error-category';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -24,6 +28,8 @@ const authRepository = new AuthRepositoryImpl();
 const calendarAdapter = new GoogleCalendarAdapter();
 const uiMessenger = new UIMessenger();
 const logger = new Logger();
+// Bolt 9: エラーハンドリングサービス
+const errorHandlingService = new ErrorHandlingService();
 
 const authenticationService = new AuthenticationService(identityAdapter, authRepository);
 const calendarInitService = new CalendarInitializationService(authRepository, calendarAdapter);

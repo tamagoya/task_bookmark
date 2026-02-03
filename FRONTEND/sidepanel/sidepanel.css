@@ -211,6 +211,12 @@ header h1 {
   border: 1px solid #2196f3;
 }
 
+.message.warning {
+  background-color: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ff9800;
+}
+
 /* 保存済み仕事一覧 */
 #work-states-section {
   margin-top: 24px;
@@ -540,6 +546,33 @@ header h1 {
   border-radius: 4px;
   color: #c62828;
   font-size: 13px;
+}
+
+/* Bolt 9: モーダルエラーメッセージ（重要度別） */
+.modal-error-message {
+  padding: 12px 16px;
+  margin: 0 16px 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  display: none;
+}
+
+.modal-error-message.error {
+  background-color: #fde7e7;
+  border: 1px solid #f5c6c6;
+  color: #c62828;
+}
+
+.modal-error-message.warning {
+  background-color: #fff3e0;
+  border: 1px solid #ffcc80;
+  color: #e65100;
+}
+
+.modal-error-message.info {
+  background-color: #e3f2fd;
+  border: 1px solid #90caf9;
+  color: #1565c0;
 }
 
 .modal-footer {

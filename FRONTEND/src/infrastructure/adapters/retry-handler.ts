@@ -1,3 +1,5 @@
+import { RetryPolicy } from '../../domain/value-objects/retry-policy';
+
 /**
  * RetryHandler
  * ネットワークエラー時のリトライを担当
@@ -86,5 +88,39 @@ export class RetryHandler {
    */
   private _delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * RetryPolicyを使用してリトライ付きで操作を実行
+   * @param operation 実行する操作
+   * @param retryPolicy リトライポリシー
+   * @returns 操作の結果
+   */
+  async executeWithRetryPolicy<T>(
+    operation: () => Promise<T>,
+    retryPolicy: RetryPolicy
+  ): Promise<T> {
+    let lastError: Error | undefined;
+    const maxRetries = retryPolicy.maxRetries;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // 最後の試行でない場合、RetryPolicyに基づいて待機
+        if (attempt < maxRetries) {
+          const delay = retryPolicy.calculateDelay(attempt);
+          await this._delay(delay);
+          continue;
+        }
+
+        // 最後の試行でも失敗した場合、エラーを投げる
+        throw lastError;
+      }
+    }
+
+    throw lastError || new Error('Operation failed after retries');
   }
 }
