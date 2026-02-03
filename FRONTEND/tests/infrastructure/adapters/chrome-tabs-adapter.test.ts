@@ -10,6 +10,7 @@ describe('ChromeTabsAdapter', () => {
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
+      debug: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
     adapter = new ChromeTabsAdapter(logger);
@@ -20,6 +21,7 @@ describe('ChromeTabsAdapter', () => {
         query: jest.fn(),
         get: jest.fn(),
         create: jest.fn(),
+        remove: jest.fn(),
       },
       runtime: {
         lastError: undefined,
@@ -276,6 +278,85 @@ describe('ChromeTabsAdapter', () => {
       // logger.errorはcreateTabsで2回呼ばれる（各失敗タブにつき1回）
       // 前のテストで呼ばれた分も含まれるため、最低2回は呼ばれていることを確認
       expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('closeTab', () => {
+    it('should close tab successfully', async () => {
+      const tabId = 1;
+      (chrome.tabs.remove as jest.Mock).mockResolvedValue(undefined);
+
+      await adapter.closeTab(tabId);
+
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(tabId);
+    });
+
+    it('should throw error if close fails', async () => {
+      const tabId = 999;
+      const error = new Error('Tab not found');
+      (chrome.tabs.remove as jest.Mock).mockRejectedValue(error);
+
+      await expect(adapter.closeTab(tabId)).rejects.toThrow('Failed to close tab');
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('closeTabs', () => {
+    it('should close multiple tabs successfully', async () => {
+      const tabIds = [1, 2, 3];
+      (chrome.tabs.remove as jest.Mock).mockResolvedValue(undefined);
+
+      await adapter.closeTabs(tabIds);
+
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(tabIds);
+    });
+
+    it('should return early if tabIds array is empty', async () => {
+      await adapter.closeTabs([]);
+
+      expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    });
+
+    it('should handle error when closing multiple tabs and retry individually', async () => {
+      const tabIds = [1, 2, 3];
+      const error = new Error('Some tabs not found');
+      
+      // 最初の一括削除が失敗
+      (chrome.tabs.remove as jest.Mock)
+        .mockRejectedValueOnce(error)
+        // 個別削除は成功
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+
+      await adapter.closeTabs(tabIds);
+
+      // 最初の一括削除が試行される
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(tabIds);
+      // 個別削除が試行される
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(2);
+      expect(chrome.tabs.remove).toHaveBeenCalledWith(3);
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('should handle individual tab close errors gracefully', async () => {
+      const tabIds = [1, 2, 3];
+      const error = new Error('Some tabs not found');
+      
+      // 最初の一括削除が失敗
+      (chrome.tabs.remove as jest.Mock)
+        .mockRejectedValueOnce(error)
+        // 個別削除: 1つ目は成功、2つ目は失敗、3つ目は成功
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('Tab 2 not found'))
+        .mockResolvedValueOnce(undefined);
+
+      await adapter.closeTabs(tabIds);
+
+      // エラーが発生しても処理は続行される
+      expect(chrome.tabs.remove).toHaveBeenCalledTimes(4); // 1回の一括削除 + 3回の個別削除
+      expect(logger.warn).toHaveBeenCalled();
     });
   });
 });

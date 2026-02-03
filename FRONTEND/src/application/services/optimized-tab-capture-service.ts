@@ -77,6 +77,17 @@ export class OptimizedTabCaptureService {
   }
 
   /**
+   * 現在のウィンドウのタブを閉じる
+   * パフォーマンス監視付き
+   */
+  async closeCurrentWindowTabs(): Promise<void> {
+    return this.performanceInterceptor.intercept(
+      'closeCurrentWindowTabs',
+      () => this.baseService.closeCurrentWindowTabs()
+    );
+  }
+
+  /**
    * タブキャッシュを無効化
    * タブが変更された場合に呼び出す
    */

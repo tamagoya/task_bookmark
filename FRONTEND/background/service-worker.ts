@@ -166,6 +166,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               await chrome.storage.local.remove(['lastRestoredEventId', 'lastRestoredAtTime']);
             }
 
+            // 保存成功後、保存したタブを閉じる（作業状態をリセット）
+            try {
+              await optimizedTabCaptureService.closeCurrentWindowTabs();
+            } catch (closeError) {
+              // タブを閉じる際のエラーはログに記録するだけで、保存処理は成功として扱う
+              logger.warn('Failed to close tabs after save', closeError instanceof Error ? closeError : new Error(String(closeError)));
+            }
+
             sendResponse({ success: true, eventId: eventId.value });
           } catch (error) {
             logger.error('Failed to save work state', error instanceof Error ? error : new Error(String(error)));
