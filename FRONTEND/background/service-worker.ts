@@ -9,18 +9,15 @@ import { EventHandler } from '../src/application/handlers/event-handler';
 import { UIMessenger } from '../src/infrastructure/adapters/ui-messenger';
 import { ChromeTabsAdapter } from '../src/infrastructure/adapters/chrome-tabs-adapter';
 import { ChromeWindowsAdapter } from '../src/infrastructure/adapters/chrome-windows-adapter';
-import { TabCaptureService } from '../src/application/services/tab-capture-service';
 import { CalendarEventRepositoryImpl } from '../src/infrastructure/repositories/calendar-event-repository-impl';
 import { CalendarEventService } from '../src/application/services/calendar-event-service';
-import { TabRestoreManager } from '../src/application/services/tab-restore-manager';
-import { RestoreService } from '../src/application/services/restore-service';
 import { RestoreRelationService } from '../src/application/services/restore-relation-service';
 import { EventId } from '../src/domain/value-objects/event-id';
 import { TabInfo } from '../src/domain/value-objects/tab-info';
 // Bolt 9: エラーハンドリング
 import { ErrorHandlingService } from '../src/application/services/error-handling-service';
-import { ErrorCode } from '../src/domain/value-objects/error-code';
-import { ErrorCategory } from '../src/domain/value-objects/error-category';
+// Bolt 10: パフォーマンス最適化
+import { OptimizedServiceFactory } from '../src/application/factories/optimized-service-factory';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -28,8 +25,9 @@ const authRepository = new AuthRepositoryImpl();
 const calendarAdapter = new GoogleCalendarAdapter();
 const uiMessenger = new UIMessenger();
 const logger = new Logger();
-// Bolt 9: エラーハンドリングサービス
-const errorHandlingService = new ErrorHandlingService();
+// Bolt 9: エラーハンドリングサービス（将来のUI統合で使用予定）
+const _errorHandlingService = new ErrorHandlingService();
+void _errorHandlingService;
 
 const authenticationService = new AuthenticationService(identityAdapter, authRepository);
 const calendarInitService = new CalendarInitializationService(authRepository, calendarAdapter);
@@ -39,22 +37,40 @@ const eventHandler = new EventHandler(uiMessenger, logger);
 // Bolt 4: タブキャプチャとカレンダーイベント保存のための依存関係
 const tabsAdapter = new ChromeTabsAdapter(logger);
 const windowsAdapter = new ChromeWindowsAdapter(logger);
-const tabCaptureService = new TabCaptureService(tabsAdapter, windowsAdapter, logger, eventHandler);
 const calendarEventRepository = new CalendarEventRepositoryImpl(calendarAdapter, eventHandler);
+
+// 非最適化版（復元メタデータ記録など一部の操作で使用）
 const calendarEventService = new CalendarEventService(calendarEventRepository, eventHandler);
 
-// Bolt 6: 仕事状態の復元のための依存関係
-const tabRestoreManager = new TabRestoreManager(tabsAdapter, logger);
-const restoreService = new RestoreService(
+// Bolt 10: パフォーマンス最適化されたサービス
+const optimizedServiceFactory = new OptimizedServiceFactory();
+
+// 最適化されたサービス（パフォーマンス監視 + キャッシュ機能付き）
+const optimizedTabCaptureService = optimizedServiceFactory.createOptimizedTabCaptureService(
+  tabsAdapter,
+  windowsAdapter,
+  eventHandler
+);
+
+const optimizedCalendarEventService = optimizedServiceFactory.createOptimizedCalendarEventService(
+  calendarEventRepository,
+  eventHandler
+);
+
+const optimizedTabRestoreManager = optimizedServiceFactory.createOptimizedTabRestoreManager(tabsAdapter);
+
+const optimizedRestoreService = optimizedServiceFactory.createOptimizedRestoreService(
   windowsAdapter,
   tabsAdapter,
-  calendarEventService,
-  tabRestoreManager,
-  logger
+  calendarEventService, // 非最適化版を使用（recordRestoreのため）
+  optimizedTabRestoreManager
 );
 
 // Bolt 7: 前後関係取得のための依存関係
 const restoreRelationService = new RestoreRelationService(calendarEventRepository, logger);
+
+// ログ: パフォーマンス最適化サービスの初期化完了
+logger.info('Performance optimized services initialized');
 
 // 拡張機能のインストール時（アラーム設定は下記に移動）
 
@@ -82,7 +98,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'GET_CURRENT_TABS':
           try {
-            const tabs = await tabCaptureService.getCurrentWindowTabs();
+            // Bolt 10: パフォーマンス最適化（キャッシュ + 監視）
+            const tabs = await optimizedTabCaptureService.getCurrentWindowTabs();
             sendResponse({ 
               success: true, 
               tabs: tabs.map(tab => ({
@@ -117,8 +134,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
-            // タブ情報を取得
-            const tabs = await tabCaptureService.getCurrentWindowTabs();
+            // タブ情報を取得（Bolt 10: パフォーマンス最適化）
+            const tabs = await optimizedTabCaptureService.getCurrentWindowTabs();
             if (tabs.length === 0) {
               sendResponse({ success: false, error: 'No tabs to save' });
               break;
@@ -133,8 +150,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               ? new Date(storageData.lastRestoredAtTime)
               : undefined;
 
-            // カレンダーイベントとして保存
-            const eventId = await calendarEventService.createWorkStateEvent(
+            // カレンダーイベントとして保存（Bolt 10: パフォーマンス最適化）
+            const eventId = await optimizedCalendarEventService.createWorkStateEvent(
               tabs,
               title,
               authState.calendarId,
@@ -170,8 +187,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
-            // 仕事状態を取得
-            const workStates = await calendarEventService.getWorkStateEvents(
+            // 仕事状態を取得（Bolt 10: パフォーマンス最適化 + キャッシュ）
+            const workStates = await optimizedCalendarEventService.getWorkStateEvents(
               new Date(startDate),
               new Date(endDate),
               authState.calendarId,
@@ -267,8 +284,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // 復元ボタンを押した時刻を記録
             const restoredAtTime = new Date().toISOString();
 
-            // 復元を実行
-            const result = await restoreService.restoreWorkState(
+            // 復元を実行（Bolt 10: パフォーマンス最適化 + バッチ処理）
+            const result = await optimizedRestoreService.restoreWorkState(
               EventId.create(eventId),
               authState.calendarId,
               authState.accessToken
@@ -359,8 +376,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               index: tab.index,
             }));
 
-            // タブリストを更新
-            await calendarEventService.updateWorkStateTabs(
+            // タブリストを更新（Bolt 10: パフォーマンス最適化）
+            await optimizedCalendarEventService.updateWorkStateTabs(
               EventId.create(eventId),
               tabInfos,
               authState.calendarId,
@@ -400,8 +417,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               index: tab.index,
             });
 
-            // タブを追加
-            await calendarEventService.addTabToWorkState(
+            // タブを追加（Bolt 10: パフォーマンス最適化）
+            await optimizedCalendarEventService.addTabToWorkState(
               EventId.create(eventId),
               tabInfo,
               index,
@@ -433,8 +450,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
-            // タブを削除
-            await calendarEventService.removeTabFromWorkState(
+            // タブを削除（Bolt 10: パフォーマンス最適化）
+            await optimizedCalendarEventService.removeTabFromWorkState(
               EventId.create(eventId),
               tabIndex,
               authState.calendarId,
@@ -466,8 +483,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
-            // タブの順序を変更
-            await calendarEventService.reorderWorkStateTabs(
+            // タブの順序を変更（Bolt 10: パフォーマンス最適化）
+            await optimizedCalendarEventService.reorderWorkStateTabs(
               EventId.create(eventId),
               fromIndex,
               toIndex,

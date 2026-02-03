@@ -1,5 +1,4 @@
 import { ErrorCode } from '../../domain/value-objects/error-code';
-import { ErrorCategory } from '../../domain/value-objects/error-category';
 import { ErrorSeverity } from '../../domain/value-objects/error-severity';
 import { ErrorMessage } from '../../domain/value-objects/error-message';
 import { RetryPolicy } from '../../domain/value-objects/retry-policy';

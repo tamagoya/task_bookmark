@@ -1,5 +1,3 @@
-import { ErrorCategory } from './error-category';
-
 /**
  * ErrorCode Value Object
  * エラーコードを表す不変オブジェクト

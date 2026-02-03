@@ -19,9 +19,14 @@ export class Logger {
   /**
    * 警告ログを記録
    * @param message メッセージ
+   * @param errorOrContext エラーまたはコンテキスト情報（オプション）
    */
-  warn(message: string): void {
-    console.warn(`[WARN] ${message}`);
+  warn(message: string, errorOrContext?: Error | Record<string, unknown>): void {
+    if (errorOrContext) {
+      console.warn(`[WARN] ${message}`, errorOrContext);
+    } else {
+      console.warn(`[WARN] ${message}`);
+    }
   }
 
   /**
@@ -30,6 +35,19 @@ export class Logger {
    */
   info(message: string): void {
     console.info(`[INFO] ${message}`);
+  }
+
+  /**
+   * デバッグログを記録
+   * @param message メッセージ
+   * @param context コンテキスト情報（オプション）
+   */
+  debug(message: string, context?: Record<string, unknown>): void {
+    if (context) {
+      console.debug(`[DEBUG] ${message}`, context);
+    } else {
+      console.debug(`[DEBUG] ${message}`);
+    }
   }
 
   /**

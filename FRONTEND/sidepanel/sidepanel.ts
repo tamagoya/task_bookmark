@@ -770,6 +770,8 @@ function renderUrlEditTabsList(): void {
         // Bolt 9: ErrorHandlingServiceを使用
         const errorCode = ErrorCode.create('VALIDATION_ERROR', ErrorCategory.VALIDATION);
         const errorMessage = errorHandlingService.generateUserMessage(errorCode);
+        // errorMessageは汎用メッセージなので、具体的なメッセージを使用
+        void errorMessage;
         showModalError('最後の1つのタブは削除できません', 'warning');
       }
     });
