@@ -40,6 +40,65 @@ npm run lint
 npm run format
 ```
 
+## 自動検証（CI/CD）
+
+このプロジェクトでは、GitHub Actionsを使用してビルド、テスト、コード品質チェックを自動化しています。
+
+### 自動実行されるチェック項目
+
+プルリクエスト作成時、またはmainブランチへのプッシュ時に、以下のチェックが自動的に実行されます：
+
+| チェック項目 | 内容 | コマンド |
+|------------|------|---------|
+| ビルド | TypeScriptのコンパイルとViteビルド | `npm run build` |
+| 型チェック | TypeScriptの型エラーチェック | `npm run type-check` |
+| ユニットテスト | Jestによる全テストの実行 | `npm test` |
+| カバレッジ | テストカバレッジの確認（閾値: 80%） | `npm run test:coverage` |
+| Lint | ESLintによるコード品質チェック | `npm run lint` |
+| Format | Prettierによるフォーマットチェック | `npm run format:check` |
+| マニフェスト検証 | Chrome拡張機能manifest.jsonの検証 | `.github/scripts/validate-manifest.sh` |
+| セキュリティスキャン | npm auditによる脆弱性チェック | `npm audit` |
+| パッケージング | 配布用ZIPファイルの生成 | `npm run package` |
+
+### CI/CDバッジ
+
+[![Chrome Extension Verification](https://github.com/YOUR_USERNAME/task_bookmark/actions/workflows/verification.yml/badge.svg)](https://github.com/YOUR_USERNAME/task_bookmark/actions/workflows/verification.yml)
+
+### ローカルで同じチェックを実行
+
+GitHub Actionsと同じチェックをローカル環境で事前に実行できます：
+
+```bash
+# FRONTENDディレクトリに移動
+cd FRONTEND
+
+# すべてのチェックを一括実行
+npm run build && \
+npm run type-check && \
+npm test && \
+npm run test:coverage && \
+npm run lint && \
+npm run format:check
+
+# または、個別に実行
+npm run build          # ビルド
+npm run type-check     # 型チェック
+npm test              # テスト
+npm run test:coverage # カバレッジ付きテスト
+npm run lint          # Lint
+npm run format:check  # フォーマットチェック
+```
+
+**推奨**: プルリクエストを作成する前に、ローカルで全チェックを実行してください。
+
+### 詳細なCI/CDガイド
+
+CI/CDの詳細な使い方については、以下のドキュメントを参照してください：
+
+- [CI/CDガイド](../CI_CD_GUIDE.md) - エンドユーザー向けの包括的なガイド
+- [ワークフロー技術ドキュメント](../.github/workflows/README.md) - 実装者向けの技術詳細
+- [検証ガイド](VERIFICATION_GUIDE.md) - 手動検証が必要な項目
+
 ## プロジェクト構造
 
 ```
