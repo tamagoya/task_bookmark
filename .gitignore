@@ -1,1 +1,7 @@
 .cursor/
+
+# 機密情報を含むファイル
+FRONTEND/manifest.json
+
+# ローカル開発用ファイル
+*.local
