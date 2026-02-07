@@ -235,5 +235,27 @@ describe('AuthRepositoryImpl', () => {
       expect(result).toBeDefined();
       expect(result?.calendarId?.value).toBe(calendarId);
     });
+
+    it('tokenExpiryが過去の場合は未認証のAuthStateを返し、TokenExpiryの検証エラーを投げない', async () => {
+      const pastExpiry = Date.now() - 3600000;
+
+      mockStorage.local.get.mockImplementation((_keys, callback) => {
+        callback({
+          authState: {
+            userId,
+            isAuthenticated: true,
+            accessToken: 'valid-access-token',
+            refreshToken: 'valid-refresh-token',
+            tokenExpiry: pastExpiry,
+          },
+        });
+      });
+
+      const result = await repository.getCurrent();
+
+      expect(result).toBeDefined();
+      expect(result?.isAuthenticated).toBe(false);
+      expect(result?.userId).toBe(userId);
+    });
   });
 });

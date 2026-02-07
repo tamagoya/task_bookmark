@@ -131,9 +131,14 @@ export class AuthRepositoryImpl implements AuthRepository {
       throw new Error('Invalid stored auth state: missing required fields');
     }
 
+    const expiryDate = new Date(stored.tokenExpiry);
+    if (expiryDate <= new Date()) {
+      return AuthStateFactory.createUnauthenticated(stored.userId);
+    }
+
     const accessToken = AccessToken.create(stored.accessToken);
     const refreshToken = RefreshToken.create(stored.refreshToken);
-    const tokenExpiry = TokenExpiry.create(new Date(stored.tokenExpiry));
+    const tokenExpiry = TokenExpiry.create(expiryDate);
 
     if (stored.calendarId) {
       const calendarId = CalendarId.create(stored.calendarId);

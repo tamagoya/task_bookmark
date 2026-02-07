@@ -188,6 +188,54 @@ npm run type-check
 2. 認証状態が「未認証」に戻ることを確認
 3. 「認証する」ボタンが表示されることを確認
 
+### 4.5 有効期限切れトークン時の動作確認（TokenExpiry 修正）
+
+**目的**: ストレージに過去の `tokenExpiry` が残っている場合に、`TokenExpiry must be in the future` で落ちずに未認証として扱えることを確認する。
+
+**期待される動作**:
+- サイドパネルを開いてもエラーが発生しない
+- 認証状態は「未認証」として表示され、「認証する」ボタンが表示される
+
+**確認手順**:
+
+1. **拡張機能をビルド・読み込み**
+   ```bash
+   cd FRONTEND && npm run build
+   ```
+   - `chrome://extensions/` で「パッケージ化されていない拡張機能を読み込む」→ `FRONTEND/dist` を選択（既に読み込み済みの場合は「更新」クリック）
+
+2. **有効期限切れの認証状態をストレージに仕込む**
+   - `chrome://extensions/` で当該拡張の「Service worker」リンクをクリックして DevTools を開く（拡張のコンテキストで `chrome.storage` が使えます）
+   - 開いた DevTools の **Console** タブで以下を実行して、有効期限切れの authState を保存する:
+     ```javascript
+     chrome.storage.local.set({
+       authState: {
+         userId: 'test-user',
+         isAuthenticated: true,
+         accessToken: 'expired-token',
+         refreshToken: 'expired-refresh',
+         tokenExpiry: Date.now() - 3600000  // 1時間前
+       }
+     }, () => console.log('Expired auth state set'));
+     ```
+   - 別案: 一度「認証する」でログインしたあと、DevTools の Console で `chrome.storage.local.get('authState', console.log)` で取得したオブジェクトの `tokenExpiry` を過去のタイムスタンプに書き換えて `chrome.storage.local.set` し直す
+
+3. **サイドパネルで確認**
+   - 拡張アイコンからサイドパネルを開く
+   - **確認ポイント**:
+     - コンソールに `TokenExpiry must be in the future` やその他のエラーが出ていない
+     - 認証状態が「未認証」として表示されている
+     - 「認証する」ボタンが表示され、再ログインできる
+
+4. **Service worker のコンソール確認**
+   - `chrome://extensions/` の「Service worker」をクリックして開いた DevTools の Console に、上記エラーが出力されていないことを確認する
+
+**ユニットテストでの確認**（コード変更の再確認）:
+```bash
+cd FRONTEND && npm test -- --testPathPattern="auth-repository-impl|authentication-service"
+```
+- すべてパスすることを確認（特に「tokenExpiryが過去の場合は未認証のAuthStateを返し、TokenExpiryの検証エラーを投げない」が含まれる）
+
 ---
 
 ## ステップ5: カレンダー初期化の確認
