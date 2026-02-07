@@ -59,6 +59,12 @@
   - 依存関係: Infrastructure Layer (ChromeTabsAdapter)
   - エラーハンドリング: 取得失敗時は`undefined`を返す
 
+- `closeCurrentWindowTabs(): Promise<void>`
+  - 現在のウィンドウのタブを閉じる
+  - 依存関係: Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter)
+  - エラーハンドリング: エラーが発生しても例外をスローしない（ログに記録のみ）
+  - 用途: 保存成功後の作業状態リセット
+
 **依存関係**:
 - Domain Layer (TabInfo Value Object, TabInfoFactory, TabsCaptured Domain Event)
 - Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter, Logger)
@@ -111,6 +117,20 @@ class ChromeTabsAdapter {
    * @returns ファビコンURL（取得できない場合はundefined）
    */
   async getFaviconUrl(tabId: number): Promise<string | undefined>
+
+  /**
+   * タブを閉じる
+   * @param tabId タブID
+   * @throws 権限エラー、タブが見つからない場合のエラー
+   */
+  async closeTab(tabId: number): Promise<void>
+
+  /**
+   * 複数のタブを一度に閉じる
+   * @param tabIds タブIDの配列
+   * @note エラーが発生したタブはスキップして続行する。全てのタブを閉じる処理は成功として扱う。
+   */
+  async closeTabs(tabIds: number[]): Promise<void>
 }
 ```
 
@@ -118,6 +138,7 @@ class ChromeTabsAdapter {
 - Chrome Tabs APIの詳細を抽象化
 - エラーハンドリング（権限エラー、タブが見つからない場合など）
 - パフォーマンス最適化（一括取得APIの活用）
+- タブの閉鎖機能（保存後のクリーンアップ用）
 
 #### ChromeWindowsAdapter
 Chrome Windows APIのラッパーです。ウィンドウ情報の取得を担当します。
@@ -173,6 +194,8 @@ Unit 1で実装済み、Unit 2でも再利用
 │  │    Tabs()            │  │  - handleTabsCaptured│        │
 │  │  - getTabInfo()      │  │                      │        │
 │  │  - getFaviconUrl()   │  │                      │        │
+│  │  - closeCurrentWindow│  │                      │        │
+│  │    Tabs()            │  │                      │        │
 │  └──────────┬───────────┘  └──────────────────────┘        │
 └─────────────┬───────────────────────────────────────────────┘
               │
@@ -200,6 +223,8 @@ Unit 1で実装済み、Unit 2でも再利用
 │  │    Tabs()            │  │    Id()              │        │
 │  │  - getTab()          │  │  - getWindow()       │        │
 │  │  - getFaviconUrl()   │  │                      │        │
+│  │  - closeTab()        │  │                      │        │
+│  │  - closeTabs()       │  │                      │        │
 │  └──────────────────────┘  └──────────────────────┘        │
 │  ┌──────────────────────┐  ┌──────────────────────┐        │
 │  │ UIMessenger          │  │ Logger                │        │
@@ -366,7 +391,7 @@ Unit 1で実装済み、Unit 2でも再利用
 
 ## まとめ
 
-Unit 2のLogical Designは、既存のアーキテクチャパターン（Unit 1、Unit 3）と一貫性を保ちながら、タブ情報取得のシンプルな設計となっています：
+Unit 2のLogical Designは、既存のアーキテクチャパターン（Unit 1、Unit 3）と一貫性を保ちながら、タブ情報取得とタブ操作のシンプルな設計となっています：
 
 1. **レイヤードアーキテクチャ**: ドメイン層、アプリケーション層、インフラストラクチャ層の分離
 2. **Service Layer パターン**: TabCaptureServiceでアプリケーションロジックを集約
@@ -374,11 +399,12 @@ Unit 2のLogical Designは、既存のアーキテクチャパターン（Unit 1
 4. **Factory パターン**: TabInfoFactoryでTabInfoの作成を担当
 5. **Domain Events パターン**: TabsCapturedイベントでイベント駆動アーキテクチャを実現
 6. **並列処理パターン**: パフォーマンス要件（500ms以内）を満たすための最適化
+7. **タブ操作機能**: 保存後のクリーンアップのためのタブ閉鎖機能
 
-この設計により、タブ情報の取得と構造化を、インフラストラクチャから独立して実装できます。また、Unit 3で既に参照されている`TabInfo`の完全な定義を提供し、システム全体の一貫性を保ちます。
+この設計により、タブ情報の取得と構造化、タブ操作を、インフラストラクチャから独立して実装できます。また、Unit 3で既に参照されている`TabInfo`の完全な定義を提供し、システム全体の一貫性を保ちます。保存成功後のタブ閉鎖機能により、作業状態をリセットして新しい作業に集中できるようになります。
 
 ---
 
 **作成日**: 2026-01-22  
-**最終更新**: 2026-01-22  
-**ステータス**: 設計完了
+**最終更新**: 2026-02-04  
+**ステータス**: 設計完了（タブ閉鎖機能の拡張を追加）

@@ -96,4 +96,43 @@ export class TabCaptureService {
       return undefined;
     }
   }
+
+  /**
+   * 現在のウィンドウのタブを閉じる
+   * @throws タブ取得エラー、タブを閉じる際のエラー
+   * @note エラーが発生した場合でも、可能な限りタブを閉じる処理を続行する
+   */
+  async closeCurrentWindowTabs(): Promise<void> {
+    try {
+      // 現在のウィンドウIDを取得
+      const windowId = await this.windowsAdapter.getCurrentWindowId();
+
+      // 現在のウィンドウのタブ情報を取得
+      const chromeTabs = await this.tabsAdapter.getCurrentWindowTabs(windowId);
+
+      if (chromeTabs.length === 0) {
+        this.logger.debug('No tabs to close in current window');
+        return;
+      }
+
+      // タブIDの配列を取得
+      const tabIds = chromeTabs
+        .map((tab) => tab.id)
+        .filter((id): id is number => id !== undefined);
+
+      if (tabIds.length === 0) {
+        this.logger.debug('No valid tab IDs to close');
+        return;
+      }
+
+      // タブを閉じる
+      await this.tabsAdapter.closeTabs(tabIds);
+      this.logger.info(`Closed ${tabIds.length} tabs in current window`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to close current window tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      // エラーを再スローしない（保存処理は成功しているため）
+      // エラーはログに記録するだけで、呼び出し元には影響を与えない
+    }
+  }
 }

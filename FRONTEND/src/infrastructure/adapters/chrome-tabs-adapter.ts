@@ -112,4 +112,50 @@ export class ChromeTabsAdapter {
 
     return tabs;
   }
+
+  /**
+   * タブを閉じる
+   * @param tabId タブID
+   * @throws 権限エラー、タブが見つからない場合のエラー
+   */
+  async closeTab(tabId: number): Promise<void> {
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to close tab ${tabId}: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      throw new Error(`Failed to close tab ${tabId}: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 複数のタブを一度に閉じる
+   * @param tabIds タブIDの配列
+   * @note エラーが発生したタブはスキップして続行する。全てのタブを閉じる処理は成功として扱う。
+   */
+  async closeTabs(tabIds: number[]): Promise<void> {
+    if (tabIds.length === 0) {
+      return;
+    }
+
+    try {
+      // Chrome Tabs APIは配列を受け取って一度に閉じることができる
+      await chrome.tabs.remove(tabIds);
+    } catch (error) {
+      // 一部のタブが閉じられなかった場合でも、エラーをログに記録して続行
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Failed to close some tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      
+      // 個別に閉じることを試みる（一部のタブが既に閉じられている可能性がある）
+      for (const tabId of tabIds) {
+        try {
+          await this.closeTab(tabId);
+        } catch (individualError) {
+          // 個別のエラーは無視して続行（タブが既に閉じられている可能性がある）
+          const individualErrorMessage = individualError instanceof Error ? individualError.message : 'Unknown error';
+          this.logger.debug(`Failed to close tab ${tabId}: ${individualErrorMessage}`);
+        }
+      }
+    }
+  }
 }

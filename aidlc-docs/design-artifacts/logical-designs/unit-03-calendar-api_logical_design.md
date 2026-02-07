@@ -278,6 +278,16 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 14. EventHandler → UIMessenger.sendMessage()
    ↓
 15. UIMessenger → UI Layer (保存成功の通知)
+   ↓
+16. CalendarEventService → TabCaptureService.closeCurrentWindowTabs() (保存成功後のタブ閉鎖)
+   ↓
+17. TabCaptureService → ChromeTabsAdapter.closeTabs() (現在のウィンドウのタブを閉じる)
+   ↓
+18. ChromeTabsAdapter → Chrome Tabs API (chrome.tabs.remove())
+   ↓
+19. タブが閉じられる（作業状態をリセット）
+   ↓
+20. エラーハンドリング: タブを閉じる際のエラーはログに記録し、保存処理は成功として扱う
 ```
 
 ### 保存済み仕事状態の一覧取得フロー
@@ -481,6 +491,9 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 ### 3. Unit 2 (タブキャプチャ) との統合
 - **入力**: `TabInfo[]` - タブ情報の配列
 - **依存**: TabInfo型の定義（Bolt 3で実装予定、現時点ではインターフェース定義のみ）
+- **保存後のタブ閉鎖**: 保存成功後、`TabCaptureService.closeCurrentWindowTabs()`を呼び出してタブを閉じる
+  - 目的: 作業状態をリセットして新しい作業に集中できるようにする
+  - エラーハンドリング: タブを閉じる際のエラーはログに記録し、保存処理は成功として扱う
 
 ### 4. Service Worker ↔ UI通信
 - **目的**: 保存・更新・削除の結果をUIに通知
@@ -674,5 +687,5 @@ class CalendarEventRepositoryImpl implements CalendarEventRepository {
 ---
 
 **作成日**: 2026-01-21  
-**最終更新**: 2026-02-03  
-**ステータス**: 設計完了（Bolt 8: URL編集機能の拡張を追加）
+**最終更新**: 2026-02-04  
+**ステータス**: 設計完了（Bolt 8: URL編集機能の拡張、保存後のタブ閉鎖機能を追加）
