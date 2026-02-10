@@ -10,8 +10,13 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "format": "npx prettier --write \"src/**/*.ts\"",
+    "format:check": "npx prettier --check \"src/**/*.ts\"",
     "type-check": "tsc --noEmit",
+    "verify:manifest": "node scripts/verify-manifest.cjs",
+    "verify:build": "node scripts/verify-build-output.cjs",
+    "verify:all": "node scripts/run-all-checks.cjs",
+    "verify:all:with-tests": "node scripts/run-all-checks.cjs --with-tests",
     "package": "npm run build && cd dist && zip -r ../task-bookmark-extension.zip . && cd .. && echo '✓ Created task-bookmark-extension.zip'"
   },
   "devDependencies": {

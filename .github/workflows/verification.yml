@@ -1,0 +1,270 @@
+name: Chrome Extension Verification
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    paths:
+      - 'FRONTEND/**'
+      - '.github/workflows/verification.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'FRONTEND/**'
+      - '.github/workflows/verification.yml'
+
+# 並列実行の制御: 同じブランチで新しいPushがあった場合、古い実行をキャンセル
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: ビルドとLint（並列実行可能）
+  build-and-lint:
+    name: Build and Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'FRONTEND/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./FRONTEND
+        run: npm ci
+
+      - name: Type check
+        working-directory: ./FRONTEND
+        run: |
+          echo "::group::TypeScript型チェック実行中"
+          npm run type-check 2>&1 | tee type-check.log || EXIT_CODE=$?
+          echo "::endgroup::"
+
+          if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "::error::TypeScript型エラーが検出されました。詳細はログを確認してください。"
+            cat type-check.log | grep -E "error TS[0-9]+" | while read line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
+          echo "::notice::✅ TypeScript型チェック成功"
+
+      - name: Lint
+        working-directory: ./FRONTEND
+        run: |
+          echo "::group::ESLintコード品質チェック実行中"
+          npm run lint 2>&1 | tee lint.log || EXIT_CODE=$?
+          echo "::endgroup::"
+
+          if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "::error::ESLintエラーが検出されました。'npm run lint -- --fix'で自動修正を試してください。"
+            exit 1
+          fi
+          echo "::notice::✅ ESLintチェック成功"
+
+      - name: Format check
+        working-directory: ./FRONTEND
+        run: |
+          echo "::group::Prettierフォーマットチェック実行中"
+          npm run format:check 2>&1 | tee format.log || EXIT_CODE=$?
+          echo "::endgroup::"
+
+          if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "::error::コードフォーマットエラーが検出されました。'npm run format'で自動修正してください。"
+            exit 1
+          fi
+          echo "::notice::✅ フォーマットチェック成功"
+
+      - name: Build extension
+        working-directory: ./FRONTEND
+        run: |
+          echo "::group::Chrome拡張機能ビルド実行中"
+          BUILD_START=$(date +%s)
+          npm run build
+          BUILD_END=$(date +%s)
+          BUILD_TIME=$((BUILD_END - BUILD_START))
+          echo "::endgroup::"
+
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
+          echo "::notice::✅ ビルド成功（${BUILD_TIME}秒）"
+
+      - name: Generate build summary
+        working-directory: ./FRONTEND
+        run: |
+          echo "## 🎉 ビルド成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ 完了した検証項目" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 項目 | 結果 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript型チェック | ✅ 成功 |" >> $GITHUB_STEP_SUMMARY
+          echo "| ESLintコード品質 | ✅ 成功 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prettierフォーマット | ✅ 成功 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Viteビルド | ✅ 成功 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 ビルド情報" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **ビルド時間**: ${BUILD_TIME}秒" >> $GITHUB_STEP_SUMMARY
+
+          if [ -d "dist" ]; then
+            DIST_SIZE=$(du -sh dist | cut -f1)
+            FILE_COUNT=$(find dist -type f | wc -l | tr -d ' ')
+            echo "- **成果物サイズ**: ${DIST_SIZE}" >> $GITHUB_STEP_SUMMARY
+            echo "- **ファイル数**: ${FILE_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 次のステップ" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- テストとセキュリティスキャンが並列実行中です" >> $GITHUB_STEP_SUMMARY
+          echo "- マニフェスト検証がビルド完了後に実行されます" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-build
+          path: FRONTEND/dist/
+          retention-days: 7
+
+  # Job 2: テスト（並列実行可能）
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'FRONTEND/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./FRONTEND
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: ./FRONTEND
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: FRONTEND/coverage/
+          retention-days: 7
+
+  # Job 3: 検証スクリプト実行（ビルド完了後）
+  verification:
+    name: Extension Verification
+    runs-on: ubuntu-latest
+    needs: [build-and-lint]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'FRONTEND/package-lock.json'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-build
+          path: FRONTEND/dist/
+
+      - name: Install dependencies
+        working-directory: ./FRONTEND
+        run: npm ci
+
+      - name: Validate Chrome Extension Manifest
+        run: bash .github/scripts/validate-manifest.sh
+
+  # Job 4: セキュリティスキャン（並列実行可能）
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'FRONTEND/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./FRONTEND
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ./FRONTEND
+        run: |
+          # npm auditを実行し、高・重大な脆弱性をチェック
+          npm audit --audit-level=high || EXIT_CODE=$?
+
+          if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "⚠️  高または重大な脆弱性が検出されました"
+            echo "詳細を確認してください: npm audit"
+            exit 1
+          fi
+
+          echo "✅ セキュリティスキャン完了: 高・重大な脆弱性なし"
+
+  # Job 5: パッケージング（全ての検証が成功した場合のみ）
+  package:
+    name: Create Extension Package
+    runs-on: ubuntu-latest
+    needs: [build-and-lint, test, verification, security-scan]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-build
+          path: FRONTEND/dist/
+
+      - name: Create ZIP package
+        working-directory: ./FRONTEND/dist
+        run: zip -r ../task-bookmark-extension.zip .
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-package
+          path: FRONTEND/task-bookmark-extension.zip
+          retention-days: 30
