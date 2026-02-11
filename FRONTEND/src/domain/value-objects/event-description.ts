@@ -8,6 +8,13 @@ import { ValidationError } from './validation-error';
  * スキーマバージョニングと拡張性をサポート
  */
 export class EventDescription {
+  /**
+   * Google Calendar API の description フィールドの最大文字数。
+   * 公式ドキュメントでは明示されていないが、実測で約 8,192 文字が上限。
+   * 安全マージンを取り 8,000 文字を上限とする。
+   */
+  static readonly MAX_LENGTH = 8000;
+
   private constructor(private readonly _value: string) {
     // 基本的なJSON形式チェック
     try {
@@ -21,11 +28,41 @@ export class EventDescription {
    * メタデータからEventDescriptionを作成
    * @param metadata メタデータ
    * @returns EventDescriptionインスタンス
+   * @throws 文字数が MAX_LENGTH を超える場合
    */
   static create(metadata: WorkStateMetadata): EventDescription {
     const json = metadata.toJSON();
     const jsonString = JSON.stringify(json);
+
+    if (jsonString.length > EventDescription.MAX_LENGTH) {
+      const tabCount = metadata.tabs.length;
+      throw new Error(
+        `保存データが Google Calendar の文字数制限（${EventDescription.MAX_LENGTH}文字）を超えています。` +
+        `現在のデータサイズ: ${jsonString.length}文字（タブ数: ${tabCount}）。` +
+        `タブの数を減らしてから再度保存してください。`
+      );
+    }
+
     return new EventDescription(jsonString);
+  }
+
+  /**
+   * メタデータの推定文字数を算出する（保存前の事前チェック用）
+   * @param metadata メタデータ
+   * @returns JSON 文字列の文字数
+   */
+  static estimateLength(metadata: WorkStateMetadata): number {
+    const json = metadata.toJSON();
+    return JSON.stringify(json).length;
+  }
+
+  /**
+   * メタデータが文字数制限内かどうかを判定する
+   * @param metadata メタデータ
+   * @returns 制限内なら true
+   */
+  static isWithinLimit(metadata: WorkStateMetadata): boolean {
+    return EventDescription.estimateLength(metadata) <= EventDescription.MAX_LENGTH;
   }
 
   /**

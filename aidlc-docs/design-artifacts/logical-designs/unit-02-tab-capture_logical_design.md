@@ -42,13 +42,19 @@
 **コンポーネント**:
 
 #### TabCaptureService
-タブ情報の取得と構造化を担当するアプリケーションサービスです。
+タブ情報の取得・構造化、保存対象タブの一括閉じ、新規ウィンドウ表示の調整を担当するアプリケーションサービスです。
 
 **主要メソッド**:
 - `getCurrentWindowTabs(): Promise<TabInfo[]>`
   - 現在のウィンドウのタブ情報を取得
   - 依存関係: Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter)
   - パフォーマンス要件: 最大20タブの取得を500ms以内で完了（NFR-001）
+
+- `getAllWindowsTabs(): Promise<TabInfo[]>`
+  - すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
+  - 依存関係: Infrastructure Layer (ChromeTabsAdapter)
+  - パフォーマンス要件: 全ウィンドウのタブ取得を1秒以内（複数ウィンドウ・合計最大50タブ程度）
+  - タブの順序: ウィンドウID昇順・同一ウィンドウ内は index 昇順
 
 - `getTabInfo(tabId: number): Promise<TabInfo>`
   - 特定のタブの情報を取得
@@ -63,7 +69,13 @@
   - 現在のウィンドウのタブを閉じる
   - 依存関係: Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter)
   - エラーハンドリング: エラーが発生しても例外をスローしない（ログに記録のみ）
-  - 用途: 保存成功後の作業状態リセット
+
+- `closeAllCapturedTabs(tabIds: number[]): Promise<void>`
+  - 指定したタブIDのタブを一括で閉じる（保存成功後の作業状態リセット用）
+  - 依存関係: Infrastructure Layer (ChromeTabsAdapter)
+  - エラーハンドリング: エラーが発生しても例外をスローしない（ログに記録のみ）
+
+- 新規ウィンドウ作成: ChromeWindowsAdapter.createWindow(['about:newtab']) を呼び出し、新しいタブを1つだけ開いたウィンドウを表示する（保存成功後に Service Worker から実行）
 
 **依存関係**:
 - Domain Layer (TabInfo Value Object, TabInfoFactory, TabsCaptured Domain Event)
@@ -103,6 +115,12 @@ class ChromeTabsAdapter {
    * @returns タブ情報の配列
    */
   async getCurrentWindowTabs(windowId?: number): Promise<chrome.tabs.Tab[]>
+
+  /**
+   * すべてのChromeウィンドウのタブ情報を一括取得
+   * @returns タブ情報の配列（ウィンドウID・index順）
+   */
+  async getAllTabs(): Promise<chrome.tabs.Tab[]>
 
   /**
    * 特定のタブの情報を取得
@@ -158,6 +176,13 @@ class ChromeWindowsAdapter {
    * @returns ウィンドウ情報
    */
   async getWindow(windowId: number): Promise<chrome.windows.Window>
+
+  /**
+   * 新しいウィンドウを作成
+   * @param urls 初期タブのURL配列（省略時は空のウィンドウ）
+   * @returns 作成されたウィンドウ情報
+   */
+  async createWindow(urls?: string[]): Promise<chrome.windows.Window>
 }
 ```
 
@@ -237,32 +262,37 @@ Unit 1で実装済み、Unit 2でも再利用
 
 ## データフロー
 
-### タブ情報取得フロー
+### タブ情報取得フロー（一覧表示・全ウィンドウ）
 
 ```
-1. UI Layer (Side Panel)
-   └─> ユーザーがサイドパネルを開く
-       └─> TabCaptureService.getCurrentWindowTabs()を呼び出し
+1. UI Layer (Side Panel) / Service Worker
+   └─> タブ一覧取得リクエスト
+       └─> TabCaptureService.getAllWindowsTabs()を呼び出し
 
 2. Application Layer (TabCaptureService)
-   └─> ChromeWindowsAdapter.getCurrentWindowId()を呼び出し
-       └─> ChromeTabsAdapter.getCurrentWindowTabs(windowId)を呼び出し
-           └─> 取得したchrome.tabs.Tab[]をTabInfoFactoryに渡す
+   └─> ChromeTabsAdapter.getAllTabs()を呼び出し
+       └─> 取得したchrome.tabs.Tab[]をウィンドウID・index順にソート
+       └─> TabInfoFactory.createFromChromeTab()でTabInfo[]を作成
 
-3. Domain Layer (TabInfoFactory)
-   └─> TabInfoFactory.createFromChromeTab()でTabInfo[]を作成
-       └─> バリデーションを実行
-
-4. Application Layer (TabCaptureService)
-   └─> TabsCaptured Domain Eventを発行
+3. Application Layer (TabCaptureService)
+   └─> TabsCaptured Domain Eventを発行（windowId: 0 で全ウィンドウを表す）
        └─> EventHandler.handleTabsCaptured()を呼び出し
 
-5. Infrastructure Layer (EventHandler)
-   └─> UIMessenger.sendMessage()でUIに通知
-       └─> Logger.info()でログ記録
+4. UI Layer (Side Panel)
+   └─> 全ウィンドウのタブ一覧を表示
+```
 
-6. UI Layer (Side Panel)
-   └─> タブ一覧を表示
+### 保存フロー（保存成功後のタブ閉じ・新規ウィンドウ表示）
+
+```
+1. Service Worker (SAVE_WORK_STATE ハンドラー)
+   └─> TabCaptureService.getAllWindowsTabs()で全ウィンドウのタブを取得
+   └─> 取得したTabInfo[]のタブID一覧を保持
+   └─> Unit 3 (Calendar API) でイベント保存
+
+2. 保存成功時のみ:
+   └─> TabCaptureService.closeAllCapturedTabs(tabIds) で保存対象のタブをすべて閉じる
+   └─> ChromeWindowsAdapter.createWindow(['about:newtab']) で新しいタブを1つだけ開いた新規ウィンドウを表示
 ```
 
 ---

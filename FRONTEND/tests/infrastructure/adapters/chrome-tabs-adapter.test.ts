@@ -80,6 +80,35 @@ describe('ChromeTabsAdapter', () => {
     });
   });
 
+  describe('getAllTabs', () => {
+    it('should get all tabs from all windows and sort by windowId then index', async () => {
+      const tabs = [
+        { id: 2, windowId: 2, url: 'https://b.com', title: 'B', index: 0 },
+        { id: 1, windowId: 1, url: 'https://a.com', title: 'A', index: 1 },
+        { id: 3, windowId: 1, url: 'https://c.com', title: 'C', index: 0 },
+      ] as unknown as chrome.tabs.Tab[];
+
+      (chrome.tabs.query as jest.Mock).mockResolvedValue(tabs);
+
+      const result = await adapter.getAllTabs();
+
+      expect(chrome.tabs.query).toHaveBeenCalledWith({});
+      expect(result).toHaveLength(3);
+      expect(result[0].windowId).toBe(1);
+      expect(result[0].index).toBe(0);
+      expect(result[1].windowId).toBe(1);
+      expect(result[1].index).toBe(1);
+      expect(result[2].windowId).toBe(2);
+    });
+
+    it('should throw error if query fails', async () => {
+      (chrome.tabs.query as jest.Mock).mockRejectedValue(new Error('Permission denied'));
+
+      await expect(adapter.getAllTabs()).rejects.toThrow('Failed to get all tabs');
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
   describe('getTab', () => {
     it('should get tab successfully', async () => {
       const tabId = 1;

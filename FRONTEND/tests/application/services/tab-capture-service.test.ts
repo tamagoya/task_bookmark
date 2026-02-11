@@ -15,6 +15,7 @@ describe('TabCaptureService', () => {
   beforeEach(() => {
     tabsAdapter = {
       getCurrentWindowTabs: jest.fn(),
+      getAllTabs: jest.fn(),
       getTab: jest.fn(),
       getFaviconUrl: jest.fn(),
       closeTab: jest.fn(),
@@ -303,6 +304,69 @@ describe('TabCaptureService', () => {
 
       // エラーが発生しても例外をスローしない
       await expect(service.closeCurrentWindowTabs()).resolves.not.toThrow();
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('getAllWindowsTabs', () => {
+    it('should get all windows tabs and return tabs with tabIds', async () => {
+      const chromeTabs = [
+        { id: 1, windowId: 1, url: 'https://example.com', title: 'Example', index: 0 },
+        { id: 2, windowId: 2, url: 'https://other.com', title: 'Other', index: 0 },
+      ] as unknown as chrome.tabs.Tab[];
+
+      tabsAdapter.getAllTabs.mockResolvedValue(chromeTabs);
+
+      const result = await service.getAllWindowsTabs();
+
+      expect(tabsAdapter.getAllTabs).toHaveBeenCalledTimes(1);
+      expect(result.tabs).toHaveLength(2);
+      expect(result.tabIds).toEqual([1, 2]);
+      expect(result.tabs[0]).toBeInstanceOf(TabInfo);
+      expect(eventHandler.handleTabsCaptured).toHaveBeenCalledTimes(1);
+      const event = eventHandler.handleTabsCaptured.mock.calls[0][0];
+      expect(event.windowId).toBe(0);
+    });
+
+    it('should handle empty tabs array', async () => {
+      tabsAdapter.getAllTabs.mockResolvedValue([]);
+
+      const result = await service.getAllWindowsTabs();
+
+      expect(result.tabs).toHaveLength(0);
+      expect(result.tabIds).toHaveLength(0);
+      expect(eventHandler.handleTabsCaptured).not.toHaveBeenCalled();
+    });
+
+    it('should throw if getAllTabs fails', async () => {
+      tabsAdapter.getAllTabs.mockRejectedValue(new Error('Failed to get tabs'));
+
+      await expect(service.getAllWindowsTabs()).rejects.toThrow('Failed to get tabs');
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to get all windows tabs'), expect.any(Error));
+    });
+  });
+
+  describe('closeAllCapturedTabs', () => {
+    it('should close tabs by ids', async () => {
+      tabsAdapter.closeTabs.mockResolvedValue(undefined);
+
+      await service.closeAllCapturedTabs([1, 2, 3]);
+
+      expect(tabsAdapter.closeTabs).toHaveBeenCalledWith([1, 2, 3]);
+      expect(logger.info).toHaveBeenCalledWith('Closed 3 tabs (all captured windows)');
+    });
+
+    it('should do nothing when tabIds is empty', async () => {
+      await service.closeAllCapturedTabs([]);
+
+      expect(tabsAdapter.closeTabs).not.toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalledWith('No tab IDs to close');
+    });
+
+    it('should not throw when closeTabs fails', async () => {
+      tabsAdapter.closeTabs.mockRejectedValue(new Error('Failed to close'));
+
+      await expect(service.closeAllCapturedTabs([1])).resolves.not.toThrow();
       expect(logger.error).toHaveBeenCalled();
     });
   });

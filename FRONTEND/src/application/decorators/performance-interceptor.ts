@@ -35,6 +35,12 @@ export class PerformanceInterceptor {
       PerformanceThreshold.create('getCurrentWindowTabs', 500, 50, 5)
     );
 
+    // 全ウィンドウのタブ情報の取得: 1秒以内
+    this.defaultThresholds.set(
+      'getAllWindowsTabs',
+      PerformanceThreshold.create('getAllWindowsTabs', 1000, 50, 5)
+    );
+
     // カレンダーイベントの保存: 2秒以内
     this.defaultThresholds.set(
       'createWorkStateEvent',
