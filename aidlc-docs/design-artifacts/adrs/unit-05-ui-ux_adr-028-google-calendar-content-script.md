@@ -20,6 +20,7 @@
 - manifest に `content_scripts` と `host_permissions`（`https://calendar.google.com/*`）を追加する。
 - 保存処理の後に説明欄を PATCH して eventId を格納する処理を追加する。
 - Content Script は説明欄の JSON から eventId を取得し、ボタンクリックで `RESTORE_WORK_STATE` を送信する。
+- **「前のタスクへ」**: 説明欄 JSON に `restoredFrom` が含まれる場合、「前のタスクへ」ボタンを表示する。クリック時に `GET_EVENT_CALENDAR_URL`（payload: `{ eventId: restoredFrom }`）を送信し、Service Worker がカレンダーIDとイベントIDから Google Calendar のイベント詳細 URL を構築して返す。Content Script は返却 URL に遷移する。URL 形式は `https://calendar.google.com/calendar/u/0/r/eventedit/<eid>`（eid は calendarId と eventId から生成）。非公式仕様に依存するため、URL 構築ロジックは一箇所に集約する。
 - Google の DOM 変更時はセレクタの見直しが必要になるリスク（RISK-015）を軽減するため、セレクタを定数化し、複数候補のフォールバックを検討する。
 
 ## 関連

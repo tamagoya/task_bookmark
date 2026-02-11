@@ -131,10 +131,11 @@
 
 **主要機能**:
 1. **検出**: 予定詳細パネルが表示されたとき、説明欄テキストにタスクブックマークのJSON（`version`, `tabs` 等）が含まれるか判定
-2. **eventId 取得**: 説明欄JSONをパースし、トップレベルの `eventId` を取得（保存後にPATCHで説明欄に格納される）
-3. **ボタン注入**: タイトル・日時の直下に「復元」ボタンを挿入（DOMセレクタは定数化し、Google UI変更時に保守しやすくする）
-4. **復元実行**: クリック時に `chrome.runtime.sendMessage({ type: 'RESTORE_WORK_STATE', payload: { eventId } })` を送信
-5. **フィードバック**: 応答の success/error に応じてメッセージ表示（未認証・APIエラー等）
+2. **eventId / restoredFrom 取得**: 説明欄JSONをパースし、トップレベルの `eventId` および `restoredFrom`（復元元イベントID）を取得
+3. **ボタン注入**: タイトル・日時の直下に「復元」ボタンを挿入。`restoredFrom` が存在する場合は「前のタスクへ」ボタンも併せて挿入（DOMセレクタは定数化し、Google UI変更時に保守しやすくする）
+4. **復元実行**: 「復元」クリック時に `chrome.runtime.sendMessage({ type: 'RESTORE_WORK_STATE', payload: { eventId } })` を送信
+5. **前のタスクへ**: 「前のタスクへ」クリック時に `chrome.runtime.sendMessage({ type: 'GET_EVENT_CALENDAR_URL', payload: { eventId: restoredFrom } })` を送信し、返却された URL に `window.location.href` で遷移
+6. **フィードバック**: 応答の success/error に応じてメッセージ表示（未認証・APIエラー等）
 
 **実装ファイル**:
 - `FRONTEND/content-scripts/calendar-restore-button.ts`（または同等パス）
@@ -143,10 +144,13 @@
 
 **メッセージフロー**:
 ```
-[Calendar 予定詳細] → 説明欄パース → eventId 取得
-       → 「復元」ボタン表示 → ユーザーがクリック
-       → sendMessage(RESTORE_WORK_STATE, { eventId })
-       → [Service Worker] 既存の復元フロー（findById → createWindow → restoreTabs → recordRestore）
+[Calendar 予定詳細] → 説明欄パース → eventId / restoredFrom 取得
+       → 「復元」「前のタスクへ」ボタン表示
+       → 「復元」クリック: sendMessage(RESTORE_WORK_STATE, { eventId })
+          → [Service Worker] 既存の復元フロー（findById → createWindow → restoreTabs → recordRestore）
+       → 「前のタスクへ」クリック: sendMessage(GET_EVENT_CALENDAR_URL, { eventId: restoredFrom })
+          → [Service Worker] authState.calendarId 取得 → イベント詳細URL構築（eventedit）→ 返却
+          → Content Script が返却URLに遷移
 ```
 
 **依存関係**:
@@ -158,7 +162,7 @@
 ┌─────────────────────────────────┐
 │ 動作確認                          │
 │ 2月11日(水) 19:23–19:53          │
-│ [復元]  ← 注入するボタン           │
+│ [復元] [前のタスクへ]  ← 注入するボタン（restoredFrom がある場合のみ「前のタスクへ」表示） │
 │ {"version":"1.0.0","eventId":"... │
 └─────────────────────────────────┘
 ```

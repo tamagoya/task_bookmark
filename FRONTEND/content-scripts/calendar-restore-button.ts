@@ -81,6 +81,16 @@ function getEventId(obj: Record<string, unknown>): string | null {
 }
 
 /**
+ * タスクブックマーク JSON から restoredFrom（復元元イベントID）を取得する
+ */
+function getRestoredFrom(obj: Record<string, unknown>): string | null {
+  if (typeof obj.restoredFrom === 'string' && obj.restoredFrom.trim()) {
+    return obj.restoredFrom.trim();
+  }
+  return null;
+}
+
+/**
  * 復元を実行し、結果に応じてメッセージを表示
  */
 function runRestore(eventId: string, button: HTMLButtonElement): void {
@@ -152,6 +162,58 @@ function createRestoreButton(eventId: string): HTMLButtonElement {
 }
 
 /**
+ * 「前のタスクへ」ボタン要素を作成。クリックで GET_EVENT_CALENDAR_URL を送信し、返却URLに遷移する
+ */
+function createPrevTaskButton(restoredFromEventId: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.setAttribute(INJECTED_ATTR, 'true');
+  button.textContent = '前のタスクへ';
+  button.type = 'button';
+  button.style.cssText =
+    'margin:8px 0 8px 8px;padding:6px 16px;background:#5f6368;color:#fff;' +
+    'border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:500;' +
+    'letter-spacing:0.25px;';
+  button.addEventListener('mouseenter', () => {
+    button.style.background = '#4a4d52';
+  });
+  button.addEventListener('mouseleave', () => {
+    button.style.background = '#5f6368';
+  });
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    runPrevTask(restoredFromEventId, button);
+  });
+  return button;
+}
+
+/**
+ * 「前のタスクへ」クリック時: イベント詳細URLを取得して遷移
+ */
+function runPrevTask(eventId: string, button: HTMLButtonElement): void {
+  button.disabled = true;
+  button.textContent = '遷移中...';
+  chrome.runtime.sendMessage(
+    { type: 'GET_EVENT_CALENDAR_URL', payload: { eventId } },
+    (response: { success?: boolean; url?: string; error?: string } | undefined) => {
+      if (chrome.runtime.lastError) {
+        button.textContent = '前のタスクへ';
+        button.disabled = false;
+        showToast('拡張機能との通信に失敗しました。');
+        return;
+      }
+      if (response?.success && response?.url) {
+        window.location.href = response.url;
+      } else {
+        button.textContent = '前のタスクへ';
+        button.disabled = false;
+        showToast(response?.error || '前のタスクへ遷移できませんでした。');
+      }
+    }
+  );
+}
+
+/**
  * DOM を走査し、タスクブックマークの説明欄を見つけてボタンを注入
  *
  * 戦略: textContent に "version" と "tabs" を含む要素のうち、textContent が
@@ -172,6 +234,7 @@ function scanAndInject(): void {
   let bestElement: Element | null = null;
   let bestLength = Infinity;
   let bestEventId: string | null = null;
+  let bestRestoredFrom: string | null = null;
 
   const allElements = document.querySelectorAll('span, div, p, section, article');
   for (const el of allElements) {
@@ -191,6 +254,7 @@ function scanAndInject(): void {
       bestLength = text.length;
       bestElement = el;
       bestEventId = eventId;
+      bestRestoredFrom = getRestoredFrom(parsed);
     }
   }
 
@@ -205,6 +269,9 @@ function scanAndInject(): void {
   wrapper.setAttribute(INJECTED_ATTR, 'true');
   wrapper.style.cssText = 'margin:4px 0 8px 0;';
   wrapper.appendChild(createRestoreButton(bestEventId));
+  if (bestRestoredFrom) {
+    wrapper.appendChild(createPrevTaskButton(bestRestoredFrom));
+  }
 
   if (parent) {
     parent.insertBefore(wrapper, bestElement);
