@@ -98,21 +98,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'GET_CURRENT_TABS':
           try {
-            // Bolt 10: パフォーマンス最適化（キャッシュ + 監視）
-            const tabs = await optimizedTabCaptureService.getCurrentWindowTabs();
-            sendResponse({ 
-              success: true, 
-              tabs: tabs.map(tab => ({
+            // 全ウィンドウのタブを取得（一覧表示・保存対象）
+            const { tabs: allTabs } = await optimizedTabCaptureService.getAllWindowsTabs();
+            sendResponse({
+              success: true,
+              tabs: allTabs.map(tab => ({
                 url: tab.url,
                 title: tab.title,
                 faviconUrl: tab.faviconUrl,
                 index: tab.index,
-              }))
+              })),
             });
           } catch (error) {
-            sendResponse({ 
-              success: false, 
-              error: error instanceof Error ? error.message : String(error) 
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
             });
           }
           break;
@@ -134,8 +134,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               break;
             }
 
-            // タブ情報を取得（Bolt 10: パフォーマンス最適化）
-            const tabs = await optimizedTabCaptureService.getCurrentWindowTabs();
+            // タブ情報を取得（全ウィンドウ、Bolt 10: パフォーマンス最適化）
+            const { tabs, tabIds } = await optimizedTabCaptureService.getAllWindowsTabs();
             if (tabs.length === 0) {
               sendResponse({ success: false, error: 'No tabs to save' });
               break;
@@ -143,10 +143,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
             // 復元元のイベントIDと復元時刻を取得（Bolt 7: 復元後に保存する際に使用）
             const storageData = await chrome.storage.local.get(['lastRestoredEventId', 'lastRestoredAtTime']);
-            const restoredFromEventId = storageData.lastRestoredEventId 
+            const restoredFromEventId = storageData.lastRestoredEventId
               ? EventId.create(storageData.lastRestoredEventId)
               : undefined;
-            const restoredAtTime = storageData.lastRestoredAtTime 
+            const restoredAtTime = storageData.lastRestoredAtTime
               ? new Date(storageData.lastRestoredAtTime)
               : undefined;
 
@@ -166,12 +166,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               await chrome.storage.local.remove(['lastRestoredEventId', 'lastRestoredAtTime']);
             }
 
-            // 保存成功後、保存したタブを閉じる（作業状態をリセット）
+            // 保存成功後、保存した全タブを閉じ、新規ウィンドウを1タブで表示
             try {
-              await optimizedTabCaptureService.closeCurrentWindowTabs();
+              await optimizedTabCaptureService.closeAllCapturedTabs(tabIds);
+              await windowsAdapter.createWindow(['about:newtab']);
             } catch (closeError) {
-              // タブを閉じる際のエラーはログに記録するだけで、保存処理は成功として扱う
-              logger.warn('Failed to close tabs after save', closeError instanceof Error ? closeError : new Error(String(closeError)));
+              logger.warn('Failed to close tabs or create new window after save', closeError instanceof Error ? closeError : new Error(String(closeError)));
             }
 
             sendResponse({ success: true, eventId: eventId.value });

@@ -29,6 +29,30 @@ export class ChromeTabsAdapter {
   }
 
   /**
+   * すべてのChromeウィンドウのタブ情報を一括取得
+   * @returns タブ情報の配列（ウィンドウID昇順・同一ウィンドウ内はindex昇順でソート済み）
+   * @throws 権限エラー、タブ取得エラー
+   */
+  async getAllTabs(): Promise<chrome.tabs.Tab[]> {
+    try {
+      const tabs = await chrome.tabs.query({});
+      const sorted = [...tabs].sort((a, b) => {
+        const windowA = a.windowId ?? 0;
+        const windowB = b.windowId ?? 0;
+        if (windowA !== windowB) {
+          return windowA - windowB;
+        }
+        return (a.index ?? 0) - (b.index ?? 0);
+      });
+      return sorted;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get all tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      throw new Error(`Failed to get all tabs: ${errorMessage}`);
+    }
+  }
+
+  /**
    * 特定のタブの情報を取得
    * @param tabId タブID
    * @returns タブ情報

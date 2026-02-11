@@ -98,6 +98,69 @@ export class TabCaptureService {
   }
 
   /**
+   * すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
+   * タブの順序はウィンドウID昇順・同一ウィンドウ内はindex昇順。
+   * @returns タブ情報の配列とタブIDの配列（保存後の一括閉じ用）
+   * @throws タブ取得エラー
+   */
+  async getAllWindowsTabs(): Promise<{ tabs: TabInfo[]; tabIds: number[] }> {
+    try {
+      const startTime = Date.now();
+
+      const chromeTabs = await this.tabsAdapter.getAllTabs();
+
+      const tabInfos: TabInfo[] = [];
+      const tabIds: number[] = [];
+
+      for (const chromeTab of chromeTabs) {
+        try {
+          const tabInfo = TabInfoFactory.createFromChromeTab(chromeTab);
+          tabInfos.push(tabInfo);
+          if (chromeTab.id !== undefined) {
+            tabIds.push(chromeTab.id);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(`Failed to create TabInfo from Chrome Tab ${chromeTab.id}: ${errorMessage}`);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      this.logger.info(`Captured ${tabInfos.length} tabs from all windows in ${duration}ms`);
+
+      if (tabInfos.length > 0) {
+        const event = new TabsCaptured(tabInfos, 0, new Date());
+        await this.eventHandler.handleTabsCaptured(event);
+      }
+
+      return { tabs: tabInfos, tabIds };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get all windows tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+      throw error;
+    }
+  }
+
+  /**
+   * 指定したタブIDのタブを一括で閉じる（保存成功後の作業状態リセット用）
+   * @param tabIds 閉じるタブのID配列
+   * @note エラーが発生した場合でも例外をスローしない（ログに記録のみ）
+   */
+  async closeAllCapturedTabs(tabIds: number[]): Promise<void> {
+    if (tabIds.length === 0) {
+      this.logger.debug('No tab IDs to close');
+      return;
+    }
+    try {
+      await this.tabsAdapter.closeTabs(tabIds);
+      this.logger.info(`Closed ${tabIds.length} tabs (all captured windows)`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to close captured tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+    }
+  }
+
+  /**
    * 現在のウィンドウのタブを閉じる
    * @throws タブ取得エラー、タブを閉じる際のエラー
    * @note エラーが発生した場合でも、可能な限りタブを閉じる処理を続行する

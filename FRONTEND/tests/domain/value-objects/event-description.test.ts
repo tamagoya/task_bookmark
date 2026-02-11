@@ -80,6 +80,49 @@ describe('EventDescription', () => {
     });
   });
 
+  describe('文字数制限', () => {
+    it('MAX_LENGTH が定義されている', () => {
+      expect(EventDescription.MAX_LENGTH).toBe(8000);
+    });
+
+    it('制限内のメタデータは作成できる', () => {
+      const metadata = WorkStateMetadata.create(version, mockTabs, savedAt);
+      expect(() => EventDescription.create(metadata)).not.toThrow();
+    });
+
+    it('制限を超えるメタデータは作成時にエラーを投げる', () => {
+      // 大量のタブを作成して制限を超える
+      const manyTabs: TabInfo[] = [];
+      for (let i = 0; i < 80; i++) {
+        manyTabs.push(
+          TabInfo.create({
+            url: `https://example-very-long-domain-name-for-testing-purpose-${i}.com/path/to/page?query=value&another=param`,
+            title: `Very Long Page Title for Testing Purpose Number ${i} - This is a long title`,
+            faviconUrl: `https://example-very-long-domain-name-for-testing-purpose-${i}.com/favicon.ico`,
+            index: i,
+          })
+        );
+      }
+      const largeMetadata = WorkStateMetadata.create(version, manyTabs, savedAt);
+
+      expect(() => EventDescription.create(largeMetadata)).toThrow(
+        /保存データが Google Calendar の文字数制限/
+      );
+    });
+
+    it('estimateLength がメタデータの推定文字数を返す', () => {
+      const metadata = WorkStateMetadata.create(version, mockTabs, savedAt);
+      const length = EventDescription.estimateLength(metadata);
+      expect(length).toBeGreaterThan(0);
+      expect(typeof length).toBe('number');
+    });
+
+    it('isWithinLimit が制限内ならtrue、超過ならfalseを返す', () => {
+      const metadata = WorkStateMetadata.create(version, mockTabs, savedAt);
+      expect(EventDescription.isWithinLimit(metadata)).toBe(true);
+    });
+  });
+
   describe('等価性', () => {
     it('同じ値の説明は等しい', () => {
       const metadata = WorkStateMetadata.create(version, mockTabs, savedAt);
