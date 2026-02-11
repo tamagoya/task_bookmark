@@ -172,6 +172,18 @@ jobs:
         working-directory: ./FRONTEND
         run: npm ci
 
+      - name: Generate manifest.json from template
+        working-directory: ./FRONTEND
+        run: |
+          if [ -f "manifest.json.template" ]; then
+            echo "📋 manifest.json.templateからmanifest.jsonを生成中..."
+            cp manifest.json.template manifest.json
+            echo "✅ manifest.jsonを生成しました"
+          else
+            echo "❌ manifest.json.templateが見つかりません"
+            exit 1
+          fi
+
       - name: Run unit tests
         working-directory: ./FRONTEND
         run: npm run test:coverage
