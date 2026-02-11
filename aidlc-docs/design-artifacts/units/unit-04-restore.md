@@ -125,8 +125,10 @@
   - WorkStateの取得
   - 復元メタデータの記録
 - **Unit 5 (UI/UX)**: 
-  - 復元ボタンのUI
+  - 復元ボタンのUI（サイドパネル）
   - プログレスインジケーター
+- **Content Script（Google Calendar）**: 
+  - 予定詳細画面からの復元リクエスト。既存の `RESTORE_WORK_STATE` メッセージ（payload: `{ eventId }`）を送信し、Service Worker が既存の復元フローで処理する。
 
 ## 実装の優先順位
 **優先度**: 高（コア機能）

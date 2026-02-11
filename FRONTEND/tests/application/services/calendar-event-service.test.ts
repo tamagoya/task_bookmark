@@ -36,6 +36,7 @@ describe('CalendarEventService', () => {
       findByDateRange: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      patchDescriptionToIncludeEventId: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<CalendarEventRepository>;
 
     eventHandler = {
@@ -63,6 +64,11 @@ describe('CalendarEventService', () => {
 
       expect(result).toEqual(eventId);
       expect(repository.save).toHaveBeenCalled();
+      expect(repository.patchDescriptionToIncludeEventId).toHaveBeenCalledWith(
+        eventId,
+        calendarId,
+        accessToken
+      );
       expect(eventHandler.handleTaskBookmarkCreated).toHaveBeenCalled();
 
       // 時間計算の確認: 終了時間は現在時刻、開始時間は30分前

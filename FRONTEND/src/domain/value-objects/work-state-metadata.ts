@@ -23,7 +23,8 @@ export class WorkStateMetadata {
     private readonly _memo?: string,
     private readonly _restoredFrom?: string,
     private readonly _restoredTo?: RestoredToEntry[],
-    private readonly _extensions?: Record<string, unknown>
+    private readonly _extensions?: Record<string, unknown>,
+    private readonly _eventId?: string
   ) {
     // バリデーション: 正常な状態ではtabsは少なくとも1つのタブを含む必要がある
     // ただし、破損時は空配列も許容するため、ここではチェックしない
@@ -129,14 +130,30 @@ export class WorkStateMetadata {
       });
     }
 
+    // eventIdの取得（Google Calendar GUI復元ボタン用）
+    // トップレベルまたはextensions内にある場合の両方をサポート
+    let calendarEventId: string | undefined;
+    if (typeof raw.eventId === 'string' && raw.eventId.trim()) {
+      calendarEventId = raw.eventId.trim();
+    } else if (
+      raw.extensions &&
+      typeof raw.extensions === 'object' &&
+      typeof (raw.extensions as Record<string, unknown>).eventId === 'string'
+    ) {
+      calendarEventId = ((raw.extensions as Record<string, unknown>).eventId as string).trim() || undefined;
+    }
+
     // 未知のフィールドをextensionsに格納（前方互換性のため）
-    const knownFields = ['version', 'tabs', 'memo', 'savedAt', 'restoredFrom', 'restoredTo', 'extensions'];
+    const knownFields = ['version', 'tabs', 'memo', 'savedAt', 'restoredFrom', 'restoredTo', 'extensions', 'eventId'];
     const extensions: Record<string, unknown> = { ...(raw.extensions as Record<string, unknown> | undefined) };
     for (const [key, value] of Object.entries(raw)) {
       if (!knownFields.includes(key)) {
         extensions[key] = value;
       }
     }
+
+    // extensions内のeventIdはトップレベルに移動したので除去
+    delete extensions.eventId;
 
     return new WorkStateMetadata(
       version,
@@ -145,7 +162,8 @@ export class WorkStateMetadata {
       memo,
       restoredFrom,
       restoredTo,
-      Object.keys(extensions).length > 0 ? extensions : undefined
+      Object.keys(extensions).length > 0 ? extensions : undefined,
+      calendarEventId
     );
   }
 
@@ -193,6 +211,13 @@ export class WorkStateMetadata {
   }
 
   /**
+   * Google CalendarイベントID（Google Calendar GUI 復元ボタン用）
+   */
+  get calendarEventId(): string | undefined {
+    return this._eventId;
+  }
+
+  /**
    * 拡張フィールドを取得
    */
   get extensions(): Record<string, unknown> | undefined {
@@ -206,9 +231,15 @@ export class WorkStateMetadata {
   toJSON(): Record<string, unknown> {
     const json: Record<string, unknown> = {
       version: this._version.toString(),
-      tabs: this._tabs,
-      savedAt: this._savedAt,
     };
+
+    // eventIdはトップレベルに出力（Google Calendar GUI復元ボタン用）
+    if (this._eventId !== undefined) {
+      json.eventId = this._eventId;
+    }
+
+    json.tabs = this._tabs;
+    json.savedAt = this._savedAt;
 
     if (this._memo !== undefined) {
       json.memo = this._memo;

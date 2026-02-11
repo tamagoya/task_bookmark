@@ -66,6 +66,17 @@ export class CalendarEventService {
     // カレンダーに保存
     const eventId = await this.calendarEventRepository.save(workState, calendarId, accessToken);
 
+    // 説明欄に eventId を追加（Google Calendar GUI の復元ボタン用）。失敗しても保存は成功とする。
+    try {
+      await this.calendarEventRepository.patchDescriptionToIncludeEventId(
+        eventId,
+        calendarId,
+        accessToken
+      );
+    } catch {
+      // パッチに失敗しても作成は完了している。カレンダーGUIからの復元は次回保存時等に反映される。
+    }
+
     // Domain Eventを発行
     await this.eventHandler.handleTaskBookmarkCreated(
       new TaskBookmarkCreated(eventId.value, title, new Date())

@@ -55,11 +55,12 @@
   - パフォーマンス要件: 10タブを5秒以内で復元（NFR-001）
 
 **実装フロー**:
-1. `CalendarEventService.findById()`でWorkStateを取得
-2. `ChromeWindowsAdapter.createWindow()`で新しいウィンドウを作成
-3. `TabRestoreManager.restoreTabsInOrder()`でタブを順番通りに復元（段階的読み込み）
-4. `CalendarEventService.recordRestore()`で復元メタデータを記録
-5. プログレス通知（`onProgress`コールバック）
+1. 呼び出し元（サイドパネルまたは **Content Script（Google Calendar 予定詳細）**）から `RESTORE_WORK_STATE` メッセージ（payload: `{ eventId }`）でトリガー
+2. `CalendarEventService.findById()`でWorkStateを取得
+3. `ChromeWindowsAdapter.createWindow()`で新しいウィンドウを作成
+4. `TabRestoreManager.restoreTabsInOrder()`でタブを順番通りに復元（段階的読み込み）
+5. `CalendarEventService.recordRestore()`で復元メタデータを記録
+6. プログレス通知（`onProgress`コールバック）
 
 **依存関係**:
 - Domain Layer (WorkState, EventId, TabInfo)

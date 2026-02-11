@@ -120,6 +120,19 @@ Chrome拡張機能のユーザーインターフェースを実装するUnitで�
 **依存関係**:
 - Unit 1 (認証): 認証状態と認証処理
 
+### 9. Google Calendar 予定詳細用 Content Script（Calendar Event Detail Injector）
+**責任**: Google Calendar（calendar.google.com）の予定詳細画面に「復元」ボタンを表示し、クリックで拡張機能の復元フローを起動する
+
+**主要機能**:
+- 予定詳細の表示を検知し、説明欄にタスクブックマークのJSONスキーマ（version, tabs 等）が含まれる場合にのみ「復元」ボタンを注入
+- 説明欄JSONから eventId を取得（保存時に説明欄に eventId を格納する仕様）
+- 「復元」クリック時に `chrome.runtime.sendMessage` で `RESTORE_WORK_STATE`（payload: `{ eventId }`）を送信
+- 未認証・エラー時はユーザーにメッセージを表示
+
+**依存関係**:
+- Unit 4 (状態復元): 既存の復元メッセージを利用
+- Unit 3 (Calendar API): 説明欄スキーマ（eventId 格納）との整合
+
 ## 技術スタック
 - **言語**: TypeScript
 - **UIフレームワーク**: 

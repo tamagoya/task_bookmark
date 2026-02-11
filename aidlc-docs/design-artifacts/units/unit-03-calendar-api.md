@@ -88,9 +88,11 @@ interface WorkStateMetadata {
 ## データ構造（カレンダーイベント説明欄）
 
 ### JSONスキーマ（v1.0）
+- 保存後にイベント説明欄に **eventId** を追加で格納する（Google Calendar GUI 上の「復元」ボタンで eventId を参照するため）。既存フィールドは変更なし。
 ```json
 {
   "version": "1.0",
+  "eventId": "実際のイベントID（保存後にPATCHで追加）",
   "tabs": [
     {
       "url": "https://example.com",
