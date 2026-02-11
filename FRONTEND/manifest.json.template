@@ -12,7 +12,8 @@
     "alarms"
   ],
   "host_permissions": [
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "https://calendar.google.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -32,5 +33,11 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["content-scripts/calendar-restore-button.js"]
+    }
+  ]
 }

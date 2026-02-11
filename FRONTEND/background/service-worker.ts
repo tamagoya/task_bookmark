@@ -72,6 +72,15 @@ const restoreRelationService = new RestoreRelationService(calendarEventRepositor
 // ログ: パフォーマンス最適化サービスの初期化完了
 logger.info('Performance optimized services initialized');
 
+/**
+ * Google Calendar イベント詳細URL用の eid を構築する（非公式仕様: eventId + " " + calendarId の base64url）
+ */
+function buildCalendarEventEid(eventId: string, calendarId: string): string {
+  const raw = `${eventId} ${calendarId}`;
+  const base64 = btoa(raw);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 // 拡張機能のインストール時（アラーム設定は下記に移動）
 
 // メッセージハンドラー
@@ -506,6 +515,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse({ 
               success: false, 
               error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'GET_EVENT_CALENDAR_URL':
+          try {
+            const { eventId } = message.payload as { eventId: string };
+            if (!eventId || typeof eventId !== 'string' || !eventId.trim()) {
+              sendResponse({ success: false, error: 'eventId is required' });
+              break;
+            }
+            const authStateForUrl = await authRepository.getCurrent();
+            if (!authStateForUrl?.calendarId?.value) {
+              sendResponse({ success: false, error: 'Not authenticated' });
+              break;
+            }
+            const eid = buildCalendarEventEid(eventId.trim(), authStateForUrl.calendarId.value);
+            const url = `https://calendar.google.com/calendar/u/0/r/eventedit/${eid}`;
+            sendResponse({ success: true, url });
+          } catch (err) {
+            logger.error('Failed to build calendar event URL', err instanceof Error ? err : new Error(String(err)));
+            sendResponse({
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
             });
           }
           break;

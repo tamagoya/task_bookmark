@@ -76,4 +76,16 @@ export interface CalendarEventRepository {
     calendarId: CalendarId,
     accessToken: AccessToken
   ): Promise<void>;
+
+  /**
+   * イベントの説明欄に eventId を追加して PATCH する（Google Calendar GUI の復元ボタン用）
+   * @param eventId イベントID
+   * @param calendarId カレンダーID
+   * @param accessToken アクセストークン
+   */
+  patchDescriptionToIncludeEventId(
+    eventId: EventId,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void>;
 }

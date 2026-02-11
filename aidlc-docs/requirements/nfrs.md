@@ -50,6 +50,7 @@
 ### 2.3 コンテンツセキュリティポリシー（CSP）
 - **Manifest V3準拠**: Content Security Policyに準拠し、インラインスクリプトや`eval()`を使用しない
 - **外部リソース**: 信頼できるドメイン（`*.googleapis.com`）からのみリソースを読み込む
+- **Content Script**: Google Calendar（`https://calendar.google.com/*`）に注入するContent Scriptは、拡張機能の`script-src 'self'`に従い、最小限のDOM操作（復元ボタン・「前のタスクへ」ボタンの表示・クリック）のみを行う。`host_permissions`に`https://calendar.google.com/*`を追加する。
 
 ### 2.4 プライバシー
 - **データの所有権**: すべてのデータはユーザーのGoogle Calendarに保存され、拡張機能開発者はアクセスできない

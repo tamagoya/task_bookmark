@@ -41,6 +41,7 @@ describe('CalendarEventService URL編集機能 (Bolt 8)', () => {
       findByDateRange: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      patchDescriptionToIncludeEventId: jest.fn().mockResolvedValue(undefined),
     };
     mockEventHandler = {
       handleUserAuthenticated: jest.fn(),

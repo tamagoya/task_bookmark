@@ -192,6 +192,47 @@ export class CalendarEventRepositoryImpl implements CalendarEventRepository {
   }
 
   /**
+   * イベントの説明欄JSONに eventId を追加して PATCH する（Google Calendar GUI の復元ボタン用）
+   */
+  async patchDescriptionToIncludeEventId(
+    eventId: EventId,
+    calendarId: CalendarId,
+    accessToken: AccessToken
+  ): Promise<void> {
+    const calendarEvent = await this.googleCalendarAdapter.getEvent(
+      calendarId.value,
+      eventId.value,
+      accessToken.value
+    );
+    const description = calendarEvent.description || '';
+    if (!description.trim()) {
+      return;
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(description) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    if (typeof parsed.version !== 'string' || !Array.isArray(parsed.tabs)) {
+      return;
+    }
+    const updatedDescription = JSON.stringify({
+      ...parsed,
+      eventId: eventId.value,
+    });
+    await this.googleCalendarAdapter.updateEvent(
+      calendarId.value,
+      eventId.value,
+      {
+        ...calendarEvent,
+        description: updatedDescription,
+      },
+      accessToken.value
+    );
+  }
+
+  /**
    * カレンダーイベントをWorkStateに変換
    * @param calendarEvent カレンダーイベント
    * @param eventId イベントID

@@ -179,4 +179,60 @@ describe('CalendarEventRepositoryImpl', () => {
       );
     });
   });
+
+  describe('patchDescriptionToIncludeEventId', () => {
+    it('説明欄JSONにeventIdを追加してPATCHする', async () => {
+      const existingDescription = JSON.stringify({
+        version: '1.0.0',
+        tabs: [{ url: 'https://example.com', title: 'Example', index: 0 }],
+        savedAt: new Date().toISOString(),
+      });
+      adapter.getEvent.mockResolvedValue({
+        id: eventId.value,
+        summary: '仕事名',
+        description: existingDescription,
+        start: { dateTime: new Date().toISOString() },
+        end: { dateTime: new Date().toISOString() },
+      });
+      adapter.updateEvent.mockResolvedValue();
+
+      await repository.patchDescriptionToIncludeEventId(
+        eventId,
+        calendarId,
+        accessToken
+      );
+
+      expect(adapter.getEvent).toHaveBeenCalledWith(
+        calendarId.value,
+        eventId.value,
+        accessToken.value
+      );
+      expect(adapter.updateEvent).toHaveBeenCalledWith(
+        calendarId.value,
+        eventId.value,
+        expect.objectContaining({
+          description: expect.stringContaining(`"eventId":"${eventId.value}"`),
+        }),
+        accessToken.value
+      );
+    });
+
+    it('説明欄が空の場合は何もしない', async () => {
+      adapter.getEvent.mockResolvedValue({
+        id: eventId.value,
+        summary: '仕事名',
+        description: '',
+        start: { dateTime: new Date().toISOString() },
+        end: { dateTime: new Date().toISOString() },
+      });
+
+      await repository.patchDescriptionToIncludeEventId(
+        eventId,
+        calendarId,
+        accessToken
+      );
+
+      expect(adapter.updateEvent).not.toHaveBeenCalled();
+    });
+  });
 });

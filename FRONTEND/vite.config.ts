@@ -62,6 +62,10 @@ export default defineConfig({
       input: {
         'background/service-worker': resolve(__dirname, 'background/service-worker.ts'),
         'sidepanel/sidepanel': resolve(__dirname, 'sidepanel/sidepanel.ts'),
+        'content-scripts/calendar-restore-button': resolve(
+          __dirname,
+          'content-scripts/calendar-restore-button.ts'
+        ),
       },
       output: {
         entryFileNames: (chunkInfo) => {
