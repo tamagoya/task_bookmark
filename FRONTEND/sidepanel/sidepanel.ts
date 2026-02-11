@@ -13,6 +13,142 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+// 機密情報を含むURLパターンの検出
+const sensitivePatterns = [
+  /[?&]token=/i,
+  /[?&]session=/i,
+  /[?&]auth=/i,
+  /[?&]api_key=/i,
+  /[?&]access_token=/i,
+  /[?&]password=/i,
+  /[?&]secret=/i
+];
+
+function detectSensitiveUrl(url: string): boolean {
+  return sensitivePatterns.some(pattern => pattern.test(url));
+}
+
+function checkSensitiveUrlsInTabs(tabs: Array<{ url: string; title: string }>): boolean {
+  return tabs.some(tab => detectSensitiveUrl(tab.url));
+}
+
+// トースト通知機能
+interface ToastOptions {
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  duration?: number;
+}
+
+class ToastManager {
+  private toasts: HTMLElement[] = [];
+  private container: HTMLElement;
+  private maxToasts = 5;
+
+  constructor() {
+    this.container = this.createContainer();
+  }
+
+  private createContainer(): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(container);
+    return container;
+  }
+
+  show(options: ToastOptions): void {
+    const { message, type, duration = 3000 } = options;
+
+    // メッセージのバリデーション
+    if (!message || typeof message !== 'string') {
+      console.error('Invalid toast message');
+      return;
+    }
+
+    // 最大文字数の制限
+    const sanitizedMessage = message.slice(0, 200);
+
+    // 最大トースト数の制限
+    if (this.toasts.length >= this.maxToasts) {
+      const oldestToast = this.toasts.shift();
+      if (oldestToast) {
+        this.removeToast(oldestToast);
+      }
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = sanitizedMessage;
+    toast.setAttribute('role', 'alert');
+
+    this.container.appendChild(toast);
+    this.toasts.push(toast);
+
+    // アニメーションで表示
+    setTimeout(() => toast.classList.add('toast-show'), 10);
+
+    // 自動的に消える
+    setTimeout(() => {
+      toast.classList.remove('toast-show');
+      setTimeout(() => {
+        this.removeToast(toast);
+      }, 300);
+    }, duration);
+  }
+
+  private removeToast(toast: HTMLElement): void {
+    if (this.container.contains(toast)) {
+      this.container.removeChild(toast);
+    }
+    this.toasts = this.toasts.filter(t => t !== toast);
+  }
+}
+
+const toastManager = new ToastManager();
+
+// プログレスバーの更新
+function updateRestoreProgress(current: number, total: number): void {
+  const progressContainer = document.getElementById('restore-progress');
+  const progressBar = document.getElementById('restore-progress-bar') as HTMLProgressElement;
+  const progressText = document.querySelector('.progress-text');
+
+  if (progressContainer && progressBar && progressText) {
+    progressContainer.style.display = 'block';
+    progressBar.max = total;
+    progressBar.value = current;
+    progressText.textContent = `${current} / ${total}`;
+
+    // 完了時に自動的に非表示
+    if (current === total && total > 0) {
+      setTimeout(() => {
+        progressContainer.style.display = 'none';
+      }, 1000);
+    }
+  }
+}
+
+function hideRestoreProgress(): void {
+  const progressContainer = document.getElementById('restore-progress');
+  if (progressContainer) {
+    progressContainer.style.display = 'none';
+  }
+}
+
+// ローディング状態のボタン
+function showButtonLoading(button: HTMLButtonElement): void {
+  button.classList.add('loading');
+  button.disabled = true;
+  button.dataset.originalText = button.textContent || '';
+}
+
+function hideButtonLoading(button: HTMLButtonElement, text?: string): void {
+  button.classList.remove('loading');
+  button.disabled = false;
+  button.textContent = text || button.dataset.originalText || '';
+  delete button.dataset.originalText;
+}
+
 // モーダル内にエラーメッセージを表示
 function showModalError(message: string, severity: 'error' | 'warning' | 'info' = 'error'): void {
   const errorElement = document.getElementById('url-edit-error');
@@ -118,7 +254,10 @@ async function loadCurrentTabs(): Promise<void> {
       }
 
       if (tabsList) {
-        tabsList.innerHTML = '';
+        // XSS対策: innerHTMLの代わりにDOM操作でクリア
+        while (tabsList.firstChild) {
+          tabsList.removeChild(tabsList.firstChild);
+        }
         tabs.forEach((tab) => {
           const tabItem = document.createElement('div');
           tabItem.className = 'tab-item';
@@ -181,10 +320,35 @@ async function saveWorkState(event: Event): Promise<void> {
     return;
   }
 
+  // 機密情報を含むURLの警告
+  try {
+    const tabsResponse = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_TABS' });
+    if (tabsResponse.success && tabsResponse.tabs) {
+      const tabs = tabsResponse.tabs as Array<{ url: string; title: string }>;
+      if (checkSensitiveUrlsInTabs(tabs)) {
+        const confirmed = confirm(
+          '警告: 現在開いているタブには、機密情報（トークン、パスワードなど）を含む可能性のあるURLがあります。\n\n' +
+          'これらのURLはGoogleカレンダーに保存されます。\n' +
+          '保存後にURL編集機能で削除または編集することもできます。\n\n' +
+          '本当に保存しますか？'
+        );
+        if (!confirmed) {
+          if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = '保存する';
+          }
+          return;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to check sensitive URLs:', error);
+    // URLチェックの失敗は保存をブロックしない
+  }
+
   // ローディング状態
   if (saveButton) {
-    saveButton.disabled = true;
-    saveButton.textContent = '保存中...';
+    showButtonLoading(saveButton);
   }
 
   // メッセージを非表示
@@ -217,14 +381,17 @@ async function saveWorkState(event: Event): Promise<void> {
     showMessageFromErrorCode(errorCode, { operation: '保存' });
   } finally {
     if (saveButton) {
-      saveButton.disabled = false;
-      saveButton.textContent = '保存する';
+      hideButtonLoading(saveButton, '保存する');
     }
   }
 }
 
 // メッセージ表示
 function showMessage(text: string, type: 'success' | 'error' | 'info' | 'warning'): void {
+  // トースト通知を表示
+  toastManager.show({ message: text, type });
+
+  // 既存のメッセージセクションも表示
   const messageSection = document.getElementById('message-section');
   const message = document.getElementById('message');
 
@@ -490,32 +657,31 @@ function renderWorkStateList(): void {
 
 // 仕事状態を復元
 async function restoreWorkState(eventId: string): Promise<void> {
-  const messageSection = document.getElementById('message-section');
-  const message = document.getElementById('message');
-  
-  if (!messageSection || !message) {
-    return;
-  }
-
-  // プログレスインジケーターを表示
-  showMessage('復元中...', 'info');
-  messageSection.style.display = 'block';
-
   try {
+    // プログレスバーを表示
+    showMessage('復元中...', 'info');
+
     const response = await chrome.runtime.sendMessage({
       type: 'RESTORE_WORK_STATE',
       payload: { eventId },
     });
 
     if (response.success) {
-      showMessage(`仕事状態を復元しました（${response.tabCount}タブ）`, 'success');
+      const tabCount = response.tabCount || 0;
+
+      // プログレスバーを更新（簡易的に即座に100%にする）
+      updateRestoreProgress(tabCount, tabCount);
+
+      showMessage(`仕事状態を復元しました（${tabCount}タブ）`, 'success');
     } else {
+      hideRestoreProgress();
       // Bolt 9: ErrorHandlingServiceを使用
       const errorCode = ErrorCode.create('API_ERROR', ErrorCategory.API);
       showMessageFromErrorCode(errorCode, { operation: '復元' });
     }
   } catch (error) {
     console.error('Failed to restore work state:', error);
+    hideRestoreProgress();
     // Bolt 9: ErrorHandlingServiceを使用（ネットワークエラーの可能性）
     const errorCode = ErrorCode.create('NETWORK_ERROR', ErrorCategory.NETWORK);
     showMessageFromErrorCode(errorCode, { operation: '復元' });

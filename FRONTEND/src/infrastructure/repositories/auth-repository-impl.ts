@@ -56,9 +56,8 @@ export class AuthRepositoryImpl implements AuthRepository {
 
   /**
    * 認証状態を削除
-   * @param _userId ユーザーID（現在の実装では使用しないが、インターフェースの互換性のため保持）
    */
-  async delete(_userId: string): Promise<void> {
+  async delete(): Promise<void> {
     return new Promise((resolve, reject) => {
       chrome.storage.local.remove(this.STORAGE_KEY, () => {
         const error = chrome.runtime.lastError;

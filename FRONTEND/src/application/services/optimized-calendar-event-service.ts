@@ -261,10 +261,8 @@ export class OptimizedCalendarEventService {
   /**
    * 一覧キャッシュを無効化
    */
-  private async invalidateWorkStateListCache(
-    _calendarId: CalendarId,
-    _accessToken: AccessToken
-  ): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async invalidateWorkStateListCache(_calendarId: CalendarId, _accessToken: AccessToken): Promise<void> {
     // calendarIdを含むすべてのキャッシュを無効化
     // 現在の実装では、キャッシュキーにcalendarIdが含まれているため、
     // 全キャッシュをクリアするか、特定のパターンにマッチするキャッシュを無効化する

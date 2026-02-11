@@ -22,37 +22,32 @@ export class AuthenticationService {
    * @throws 認証エラー
    */
   async authenticate(): Promise<AuthState> {
-    try {
-      // Chrome Identity APIからトークンを取得
-      const token = await this.identityAdapter.getAuthToken();
+    // Chrome Identity APIからトークンを取得
+    const token = await this.identityAdapter.getAuthToken();
 
-      // トークンからユーザー情報を取得（簡易実装）
-      // 実際の実装では、トークンからユーザーIDを抽出する必要がある
-      const userId = await this._getUserIdFromToken(token);
+    // トークンからユーザー情報を取得（簡易実装）
+    // 実際の実装では、トークンからユーザーIDを抽出する必要がある
+    const userId = await this._getUserIdFromToken(token);
 
-      // 既存の認証状態を取得
-      let authState = await this.authRepository.getCurrent();
-      if (!authState || authState.userId !== userId) {
-        authState = AuthStateFactory.createUnauthenticated(userId);
-      }
-
-      // トークンの有効期限を計算（簡易実装: 1時間後）
-      const expiresAt = new Date(Date.now() + 3600000);
-      const accessToken = AccessToken.create(token);
-      const refreshToken = RefreshToken.create(token); // 実際には別のトークンが必要
-      const tokenExpiry = TokenExpiry.create(expiresAt);
-
-      // 認証状態を設定
-      authState.authenticate(accessToken, refreshToken, tokenExpiry);
-
-      // 認証状態を保存
-      await this.authRepository.save(authState);
-
-      return authState;
-    } catch (error) {
-      // イベントハンドラーに通知（実装は後で追加）
-      throw error;
+    // 既存の認証状態を取得
+    let authState = await this.authRepository.getCurrent();
+    if (!authState || authState.userId !== userId) {
+      authState = AuthStateFactory.createUnauthenticated(userId);
     }
+
+    // トークンの有効期限を計算（簡易実装: 1時間後）
+    const expiresAt = new Date(Date.now() + 3600000);
+    const accessToken = AccessToken.create(token);
+    const refreshToken = RefreshToken.create(token); // 実際には別のトークンが必要
+    const tokenExpiry = TokenExpiry.create(expiresAt);
+
+    // 認証状態を設定
+    authState.authenticate(accessToken, refreshToken, tokenExpiry);
+
+    // 認証状態を保存
+    await this.authRepository.save(authState);
+
+    return authState;
   }
 
   /**
