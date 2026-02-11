@@ -136,7 +136,7 @@ export class CalendarEventService {
     }
 
     // 更新を適用（イミュータビリティのため新しいインスタンスを作成）
-    let updatedWorkState = existingWorkState;
+    const updatedWorkState = existingWorkState;
     const updatedFields: string[] = [];
 
     if (updates.title) {

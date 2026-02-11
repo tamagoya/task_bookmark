@@ -64,9 +64,10 @@ export class RetryHandler {
 
   /**
    * Retry-Afterヘッダーの値を取得
-   * @param error エラー
+   * @param _error エラーオブジェクト
    * @returns 待機秒数
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _getRetryAfter(_error: unknown): number {
     // 実際の実装では、エラーレスポンスからRetry-Afterヘッダーを取得
     // ここでは簡易実装として、固定値を返す

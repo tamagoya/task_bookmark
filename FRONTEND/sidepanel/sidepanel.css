@@ -23,9 +23,10 @@ header {
 }
 
 header h1 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px; /* 20px → 22px */
+  font-weight: 700; /* 600 → 700 */
   color: #1a1a1a;
+  letter-spacing: -0.02em;
 }
 
 .status {
@@ -71,14 +72,14 @@ header h1 {
 
 /* タブ一覧 */
 #tabs-section {
-  margin-top: 24px;
-  margin-bottom: 24px;
+  margin-top: 32px; /* 24px → 32px */
+  margin-bottom: 32px; /* 24px → 32px */
 }
 
 #tabs-section h2 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 12px;
+  font-size: 18px; /* 16px → 18px */
+  font-weight: 700; /* 600 → 700 */
+  margin-bottom: 16px; /* 12px → 16px */
   color: #1a1a1a;
 }
 
@@ -91,11 +92,16 @@ header h1 {
 }
 
 .tab-item {
-  padding: 8px 12px;
+  padding: 12px; /* 8px 12px → 12px */
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px; /* 8px → 12px */
+  transition: background-color 0.2s ease;
+}
+
+.tab-item:hover {
+  background-color: #f5f5f5;
 }
 
 .tab-item:last-child {
@@ -131,13 +137,13 @@ header h1 {
 
 /* 保存フォーム */
 #save-section {
-  margin-top: 24px;
-  margin-bottom: 24px;
+  margin-top: 32px; /* 24px → 32px */
+  margin-bottom: 32px; /* 24px → 32px */
 }
 
 #save-section h2 {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px; /* 16px → 18px */
+  font-weight: 700; /* 600 → 700 */
   margin-bottom: 16px;
   color: #1a1a1a;
 }
@@ -219,13 +225,13 @@ header h1 {
 
 /* 保存済み仕事一覧 */
 #work-states-section {
-  margin-top: 24px;
-  margin-bottom: 24px;
+  margin-top: 32px; /* 24px → 32px */
+  margin-bottom: 32px; /* 24px → 32px */
 }
 
 #work-states-section h2 {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px; /* 16px → 18px */
+  font-weight: 700; /* 600 → 700 */
   margin-bottom: 16px;
   color: #1a1a1a;
 }
@@ -310,18 +316,20 @@ header h1 {
 }
 
 .work-state-item {
-  padding: 12px;
+  padding: 16px; /* 12px → 16px */
   border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  margin-bottom: 12px;
+  border-radius: 8px; /* 4px → 8px */
+  margin-bottom: 16px; /* 12px → 16px */
   background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .work-state-item:hover {
   border-color: #1a73e8;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .work-state-item.corrupted {
@@ -688,4 +696,124 @@ header h1 {
 
 .url-edit-add-form .button {
   width: 100%;
+}
+
+/* ローディングインジケーター */
+.button.loading {
+  position: relative;
+  color: transparent;
+}
+
+.button.loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* プログレスバーコンテナ */
+.progress-container {
+  padding: 12px;
+  margin: 16px 0;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+}
+
+.progress-label {
+  font-size: 13px;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.progress-container progress {
+  width: 100%;
+  height: 8px;
+  margin-bottom: 6px;
+  appearance: none;
+  border: none;
+}
+
+.progress-container progress::-webkit-progress-bar {
+  background-color: #e0e0e0;
+  border-radius: 4px;
+}
+
+.progress-container progress::-webkit-progress-value {
+  background-color: #1a73e8;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-container progress::-moz-progress-bar {
+  background-color: #1a73e8;
+  border-radius: 4px;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: #5f6368;
+  text-align: right;
+}
+
+/* トースト通知 */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 300px;
+}
+
+.toast {
+  padding: 12px 16px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all 0.3s ease;
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.toast-show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-success {
+  background-color: #4caf50;
+  color: #fff;
+}
+
+.toast-error {
+  background-color: #f44336;
+  color: #fff;
+}
+
+.toast-info {
+  background-color: #2196f3;
+  color: #fff;
+}
+
+.toast-warning {
+  background-color: #ff9800;
+  color: #fff;
 }

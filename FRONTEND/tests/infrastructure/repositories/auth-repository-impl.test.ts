@@ -175,7 +175,7 @@ describe('AuthRepositoryImpl', () => {
         callback();
       });
 
-      await repository.delete(userId);
+      await repository.delete();
 
       expect(mockStorage.local.remove).toHaveBeenCalledWith(
         'authState',
@@ -185,13 +185,13 @@ describe('AuthRepositoryImpl', () => {
 
     it('削除エラーが発生した場合はエラーを投げる', async () => {
       const errorMessage = 'Storage error';
-      
+
       mockStorage.local.remove.mockImplementation((_keys, callback) => {
         mockChromeRuntime.lastError = { message: errorMessage };
         callback();
       });
 
-      await expect(repository.delete(userId)).rejects.toThrow(errorMessage);
+      await expect(repository.delete()).rejects.toThrow(errorMessage);
       mockChromeRuntime.lastError = undefined;
     });
   });
