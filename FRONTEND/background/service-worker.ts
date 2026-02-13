@@ -179,12 +179,39 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               ]);
             }
 
-            // 保存成功後、保存した全タブを閉じ、新規ウィンドウを1タブで表示
+            // 保存成功後、サイドパネルが開いているウィンドウを維持しつつ全タブを閉じる
+            // chrome.sidePanel.open() はユーザージェスチャーが必要で呼び出せないため、
+            // 既存ウィンドウのタブを1つ残して遷移させることでサイドパネルを開いたまま保持する
             try {
-              await optimizedTabCaptureService.closeAllCapturedTabs(tabIds);
-              await windowsAdapter.createWindow(['about:newtab']);
+              let keepTabId: number | undefined;
+              try {
+                // サイドパネルが開いているウィンドウ（最後にフォーカスされたウィンドウ）のアクティブタブを取得
+                const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+                if (activeTabs.length > 0 && activeTabs[0].id !== undefined) {
+                  keepTabId = activeTabs[0].id;
+                  // そのタブを新しいタブページに遷移させる（ウィンドウが閉じないようにする）
+                  await chrome.tabs.update(keepTabId, { url: 'chrome://newtab' });
+                }
+              } catch (preserveError) {
+                logger.warn(
+                  'Failed to preserve side panel window tab, will create new window',
+                  preserveError instanceof Error ? preserveError : new Error(String(preserveError))
+                );
+                keepTabId = undefined;
+              }
+
+              // 保存対象のタブを閉じる（keepTabId は除外して残す）
+              const tabsToClose = keepTabId !== undefined
+                ? tabIds.filter(id => id !== keepTabId)
+                : tabIds;
+              await optimizedTabCaptureService.closeAllCapturedTabs(tabsToClose);
+
+              // フォールバック: タブの維持に失敗した場合は新規ウィンドウを作成
+              if (keepTabId === undefined) {
+                await windowsAdapter.createWindow(['about:newtab']);
+              }
             } catch (closeError) {
-              logger.warn('Failed to close tabs or create new window after save', closeError instanceof Error ? closeError : new Error(String(closeError)));
+              logger.warn('Failed to close tabs or maintain window after save', closeError instanceof Error ? closeError : new Error(String(closeError)));
             }
 
             sendResponse({ success: true, eventId: eventId.value });

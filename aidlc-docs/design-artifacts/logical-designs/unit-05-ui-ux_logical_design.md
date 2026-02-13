@@ -32,10 +32,12 @@
 - サイドパネルの表示制御
 - 画面遷移の管理（タブ一覧、保存済み仕事一覧、詳細表示）
 - 認証状態の管理
+- **保存後のサイドパネル自動表示**: 保存成功後、Service Worker がサイドパネルの開いているウィンドウを維持することで、サイドパネルを開いたまま保つ（`chrome.sidePanel.open()` はユーザージェスチャー必須のため、既存ウィンドウ維持方式を採用。Unit 2 保存フローと連携）
 
 **実装ファイル**:
 - `FRONTEND/sidepanel/sidepanel.html`
 - `FRONTEND/sidepanel/sidepanel.ts`
+- Service Worker 側: `FRONTEND/background/service-worker.ts`（getLastFocused → tabs.create → closeAllCapturedTabs で既存ウィンドウを維持）
 
 **依存関係**:
 - Chrome Side Panel API
