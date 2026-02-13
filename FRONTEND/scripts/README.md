@@ -59,7 +59,27 @@ npm run verify:build
 
 ---
 
-### 3. run-all-checks.cjs
+### 3. pack-for-store.cjs
+
+Chrome Web Store Developer Dashboard 用のZIPパッケージを作成します。
+
+**処理内容:**
+- `dist/` の内容をZIPにまとめる（manifest.json がZIPルートに来る形式）
+- `.DS_Store`・`__MACOSX/*`・`*.map` を除外
+- 出力: `FRONTEND/task-bookmark-extension.zip`
+
+**実行方法:**
+```bash
+npm run package
+```
+（ビルド後に自動でこのスクリプトが実行されます）
+
+**前提条件:**
+- 先に `npm run build` が完了していること（`npm run package` の場合はビルドから実行されるため不要）
+
+---
+
+### 4. run-all-checks.cjs
 
 全ての検証を統合的に実行します。
 

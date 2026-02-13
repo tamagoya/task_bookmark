@@ -129,24 +129,14 @@ FRONTEND/
 - [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)のアカウント（$5の登録料が必要）
 - [Google Cloud Console](https://console.cloud.google.com/)のアカウント
 
-### ステップ1: 拡張機能をパッケージ化
+### ステップ1: 拡張機能をパッケージ化（Chrome Web Store 用ZIP作成）
 
-1. 拡張機能をビルド：
+1. 次のコマンドでビルドとZIP作成を一度に実行します（ZIPは `FRONTEND/task-bookmark-extension.zip` に出力されます）：
    ```bash
-   npm run build
+   npm run package
    ```
-
-2. `FRONTEND/dist`ディレクトリの内容をZIP形式で圧縮：
-   ```bash
-   cd FRONTEND/dist
-   zip -r ../../task-bookmark-extension.zip .
-   ```
-   
-   または、GUIで`FRONTEND/dist`フォルダ内のすべてのファイルを選択してZIP形式で圧縮してください。
-
-   **重要**: `dist`フォルダ自体ではなく、`dist`フォルダ内のファイルをZIPに含めてください。
-   - ✅ 正しい: `manifest.json`, `background/`, `sidepanel/` がZIPのルートにある
-   - ❌ 間違い: `dist/`フォルダがZIPのルートにある
+   - ビルド後、`dist/` の内容がZIPにまとめられ、`.DS_Store` などは除外されます。
+   - **重要**: ZIPのルートに `manifest.json`・`background/`・`sidepanel/` が含まれる形式で作成されます（Chrome Web Store の要件を満たします）。
 
 ### ステップ2: Chrome Web Store Developer Dashboardにアップロード
 

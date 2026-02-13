@@ -17,7 +17,7 @@
     "verify:build": "node scripts/verify-build-output.cjs",
     "verify:all": "node scripts/run-all-checks.cjs",
     "verify:all:with-tests": "node scripts/run-all-checks.cjs --with-tests",
-    "package": "npm run build && cd dist && zip -r ../task-bookmark-extension.zip . && cd .. && echo '✓ Created task-bookmark-extension.zip'"
+    "package": "npm run build && node scripts/pack-for-store.cjs"
   },
   "devDependencies": {
     "@jest/test-sequencer": "^29.7.0",
