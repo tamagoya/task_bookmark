@@ -22,8 +22,19 @@
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
+  "icons": {
+    "16": "icons/task_bookmark_icon.png",
+    "32": "icons/task_bookmark_icon.png",
+    "48": "icons/task_bookmark_icon.png",
+    "128": "icons/task_bookmark_icon.png"
+  },
   "action": {
-    "default_title": "タスクブックマーク"
+    "default_title": "タスクブックマーク",
+    "default_icon": {
+      "16": "icons/task_bookmark_icon.png",
+      "32": "icons/task_bookmark_icon.png",
+      "48": "icons/task_bookmark_icon.png"
+    }
   },
   "oauth2": {
     "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",

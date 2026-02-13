@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -17,6 +17,24 @@ const copyManifestPlugin = () => {
         copyFileSync(manifestPath, distManifestPath);
         console.log('✓ Copied manifest.json');
       }
+    },
+  };
+};
+
+const copyIconsPlugin = () => {
+  return {
+    name: 'copy-icons',
+    closeBundle() {
+      const iconsDir = resolve(__dirname, 'icons');
+      const distIconsDir = resolve(__dirname, 'dist', 'icons');
+      if (!existsSync(iconsDir)) return;
+      if (!existsSync(distIconsDir)) {
+        mkdirSync(distIconsDir, { recursive: true });
+      }
+      readdirSync(iconsDir).forEach((f) => {
+        copyFileSync(resolve(iconsDir, f), resolve(distIconsDir, f));
+      });
+      console.log('✓ Copied icons');
     },
   };
 };
@@ -82,7 +100,7 @@ export default defineConfig({
     // チャンクサイズの警告を無効化
     chunkSizeWarningLimit: 1000,
   },
-  plugins: [copyManifestPlugin(), copySidepanelFilesPlugin()],
+  plugins: [copyManifestPlugin(), copyIconsPlugin(), copySidepanelFilesPlugin()],
   resolve: {
     alias: {
       '@domain': resolve(__dirname, 'src/domain'),
