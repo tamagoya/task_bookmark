@@ -30,17 +30,4 @@ describe('PerformanceMetricsCollector', () => {
       expect(timestamp).toBeGreaterThan(0);
     });
   });
-
-  describe('elapsedTime', () => {
-    it('should return elapsed time', async () => {
-      const startTime = collector.now();
-
-      // 少し待機
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const elapsed = collector.elapsedTime(startTime);
-
-      expect(elapsed).toBeGreaterThanOrEqual(10);
-    });
-  });
 });

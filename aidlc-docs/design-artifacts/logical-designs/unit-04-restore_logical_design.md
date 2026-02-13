@@ -49,8 +49,8 @@
 仕事状態の復元処理を担当するアプリケーションサービスです。
 
 **主要メソッド**:
-- `restoreWorkState(eventId: EventId, calendarId: CalendarId, accessToken: AccessToken, onProgress?: (completed: number, total: number) => void): Promise<{ windowId: number; tabIds: number[] }>`
-  - 仕事状態を復元
+- `restoreWorkState(eventId: EventId, calendarId: CalendarId, accessToken: AccessToken, onProgress?: (completed: number, total: number) => void): Promise<{ windowId: number; tabIds: number[]; title: string }>`
+  - 仕事状態を復元。戻り値に `title`（復元した仕事のタイトル）を含め、保存フォームのデフォルト値として利用する。
   - 依存関係: Domain Layer (WorkState), Infrastructure Layer (ChromeWindowsAdapter, ChromeTabsAdapter), Application Layer (CalendarEventService, TabRestoreManager)
   - パフォーマンス要件: 10タブを5秒以内で復元（NFR-001）
 
@@ -61,6 +61,7 @@
 4. `TabRestoreManager.restoreTabsInOrder()`でタブを順番通りに復元（段階的読み込み）
 5. `CalendarEventService.recordRestore()`で復元メタデータを記録
 6. プログレス通知（`onProgress`コールバック）
+7. 戻り値に `windowId`, `tabIds`, `title`（workState.title.value）を返す
 
 **依存関係**:
 - Domain Layer (WorkState, EventId, TabInfo)

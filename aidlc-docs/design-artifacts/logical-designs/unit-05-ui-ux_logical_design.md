@@ -32,10 +32,12 @@
 - サイドパネルの表示制御
 - 画面遷移の管理（タブ一覧、保存済み仕事一覧、詳細表示）
 - 認証状態の管理
+- **保存後のサイドパネル自動表示**: 保存成功後、Service Worker がサイドパネルの開いているウィンドウを維持することで、サイドパネルを開いたまま保つ（`chrome.sidePanel.open()` はユーザージェスチャー必須のため、既存ウィンドウ維持方式を採用。Unit 2 保存フローと連携）
 
 **実装ファイル**:
 - `FRONTEND/sidepanel/sidepanel.html`
 - `FRONTEND/sidepanel/sidepanel.ts`
+- Service Worker 側: `FRONTEND/background/service-worker.ts`（getLastFocused → tabs.create → closeAllCapturedTabs で既存ウィンドウを維持）
 
 **依存関係**:
 - Chrome Side Panel API
@@ -68,13 +70,15 @@
 - メモの入力（任意）
 - 保存ボタン
 - バリデーション
+- **復元セッション時の初期表示**: `chrome.storage.local` の `lastRestoredWorkTitle`, `lastRestoredAtTime` を読み取り、仕事名のデフォルト表示と「復元した時刻」の表示を行う。認証済み表示時・保存成功後・storage 変更時（`chrome.storage.onChanged`）に反映を更新する。
 
 **実装ファイル**:
-- `FRONTEND/sidepanel/sidepanel.html` (save-section)
-- `FRONTEND/sidepanel/sidepanel.ts` (saveWorkState)
+- `FRONTEND/sidepanel/sidepanel.html` (save-section, 復元した時刻表示要素)
+- `FRONTEND/sidepanel/sidepanel.ts` (saveWorkState, applyLastRestoredSession)
 
 **依存関係**:
 - Application Layer (CalendarEventService)
+- Chrome Storage API (lastRestoredEventId, lastRestoredAtTime, lastRestoredWorkTitle)
 
 ---
 

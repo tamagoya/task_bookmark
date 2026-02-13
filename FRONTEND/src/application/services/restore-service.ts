@@ -33,14 +33,14 @@ export class RestoreService {
    * @param calendarId カレンダーID
    * @param accessToken アクセストークン
    * @param onProgress 進捗コールバック（任意）
-   * @returns 復元結果（ウィンドウID、タブIDの配列）
+   * @returns 復元結果（ウィンドウID、タブIDの配列、復元した仕事のタイトル）
    */
   async restoreWorkState(
     eventId: EventId,
     calendarId: CalendarId,
     accessToken: AccessToken,
     onProgress?: (completed: number, total: number) => void
-  ): Promise<{ windowId: number; tabIds: number[] }> {
+  ): Promise<{ windowId: number; tabIds: number[]; title: string }> {
     // 1. WorkStateを取得
     const workState = await this.calendarEventService.findById(eventId, calendarId, accessToken);
 
@@ -86,6 +86,7 @@ export class RestoreService {
     return {
       windowId: window.id,
       tabIds,
+      title: workState.title.value,
     };
   }
 }

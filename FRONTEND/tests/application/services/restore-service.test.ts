@@ -111,8 +111,8 @@ describe('RestoreService', () => {
         calendarId,
         accessToken
       );
-      // 最初のタブID + 残りのタブID
-      expect(result).toEqual({ windowId: window.id!, tabIds: [100, 101] });
+      // 最初のタブID + 残りのタブID + 復元した仕事のタイトル
+      expect(result).toEqual({ windowId: window.id!, tabIds: [100, 101], title: '仕事名' });
     });
 
     it('should call onProgress callback', async () => {
@@ -249,7 +249,7 @@ describe('RestoreService', () => {
       expect(windowsAdapter.createWindow).toHaveBeenCalledWith(['https://example.com']);
       // 残りのタブがないのでrestoreTabsInOrderは呼ばれない
       expect(tabRestoreManager.restoreTabsInOrder).not.toHaveBeenCalled();
-      expect(result).toEqual({ windowId: window.id!, tabIds: [100] });
+      expect(result).toEqual({ windowId: window.id!, tabIds: [100], title: '仕事名' });
     });
   });
 });

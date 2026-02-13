@@ -291,9 +291,14 @@ Unit 1で実装済み、Unit 2でも再利用
    └─> Unit 3 (Calendar API) でイベント保存
 
 2. 保存成功時のみ:
+   └─> chrome.windows.getLastFocused() でサイドパネルが開いているウィンドウを取得
+   └─> chrome.tabs.create({ windowId, url: 'about:newtab' }) でそのウィンドウに新しいタブを先に作成（ウィンドウが閉じないようにする）
    └─> TabCaptureService.closeAllCapturedTabs(tabIds) で保存対象のタブをすべて閉じる
-   └─> ChromeWindowsAdapter.createWindow(['about:newtab']) で新しいタブを1つだけ開いた新規ウィンドウを表示
+   └─> 他のウィンドウはタブが無くなり自動で閉じるが、新しいタブを作ったウィンドウはサイドパネルごと残る
+   └─> [フォールバック] ウィンドウの維持に失敗した場合は ChromeWindowsAdapter.createWindow(['about:newtab']) で新規ウィンドウを作成
 ```
+
+**注意**: `chrome.sidePanel.open()` はユーザージェスチャーへの直接応答としてのみ呼び出し可能であり、非同期処理後に呼ぶとエラーになる。そのため、新規ウィンドウを作ってサイドパネルを開く方式ではなく、既存のサイドパネル付きウィンドウを維持する方式を採用している。
 
 ---
 
