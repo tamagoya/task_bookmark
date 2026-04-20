@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タスクブックマーク - ブラウザの作業状態をワンクリックで保存・復元</title>
+  <meta name="description" content="タスクブックマークは、Chromeの作業状態をGoogle Calendarに保存し、ワンクリックで復元できるChrome拡張機能です。">
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --color-primary: #2563eb;
+      --color-primary-dark: #1d4ed8;
+      --color-primary-light: #dbeafe;
+      --color-accent: #f59e0b;
+      --color-text: #1e293b;
+      --color-text-secondary: #64748b;
+      --color-bg: #ffffff;
+      --color-bg-subtle: #f8fafc;
+      --color-border: #e2e8f0;
+      --font-sans: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+      --max-width: 1120px;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--color-text);
+      background: var(--color-bg);
+      line-height: 1.8;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: var(--color-primary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    a:hover {
+      color: var(--color-primary-dark);
+    }
+
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--color-text);
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--color-primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .header-nav a {
+      color: var(--color-text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .header-nav a:hover {
+      color: var(--color-primary);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 80px 0 64px;
+      text-align: center;
+      background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.35;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--color-primary), #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-lead {
+      font-size: 1.1rem;
+      color: var(--color-text-secondary);
+      max-width: 640px;
+      margin: 0 auto 36px;
+      line-height: 1.9;
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--color-primary);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 100px;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    }
+
+    .hero-cta:hover {
+      background: var(--color-primary-dark);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .hero-screenshot {
+      margin-top: 56px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+    }
+
+    .hero-screenshot-inner {
+      padding: 32px 40px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      text-align: left;
+    }
+
+    .screenshot-flow {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    .flow-step-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+    }
+
+    .flow-step-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .flow-arrow {
+      color: var(--color-text-secondary);
+      font-size: 1.2rem;
+      margin-top: -20px;
+    }
+
+    /* ── Section ── */
+    .section {
+      padding: 80px 0;
+    }
+
+    .section--alt {
+      background: var(--color-bg-subtle);
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .section-header h2 {
+      font-size: 1.7rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .section-header p {
+      color: var(--color-text-secondary);
+      max-width: 560px;
+      margin: 0 auto;
+      font-size: 1rem;
+    }
+
+    /* ── Features ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 28px;
+    }
+
+    .feature-card {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      transition: box-shadow 0.25s, transform 0.2s;
+    }
+
+    .feature-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      font-size: 1.4rem;
+    }
+
+    .feature-icon--save { background: #dbeafe; color: #2563eb; }
+    .feature-icon--calendar { background: #fef3c7; color: #d97706; }
+    .feature-icon--restore { background: #d1fae5; color: #059669; }
+    .feature-icon--chain { background: #ede9fe; color: #7c3aed; }
+    .feature-icon--edit { background: #fce7f3; color: #db2777; }
+    .feature-icon--secure { background: #f1f5f9; color: #475569; }
+
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      color: var(--color-text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.75;
+    }
+
+    /* ── How It Works ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 32px;
+      counter-reset: step;
+    }
+
+    .step {
+      text-align: center;
+      position: relative;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0 auto 16px;
+    }
+
+    .step h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      font-size: 0.88rem;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+    }
+
+    /* ── Data Usage ── */
+    .data-usage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+
+    .data-card {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+
+    .data-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .data-card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .data-card li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: var(--color-text-secondary);
+    }
+
+    .data-card li .check {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 3px;
+    }
+
+    .check--green { background: #d1fae5; color: #059669; }
+    .check--blue { background: #dbeafe; color: #2563eb; }
+    .check--red { background: #fee2e2; color: #dc2626; }
+
+    .scope-badge {
+      display: inline-block;
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      font-family: "SF Mono", "Fira Code", monospace;
+      color: var(--color-text-secondary);
+      margin-top: 16px;
+    }
+
+    /* ── FAQ ── */
+    .faq-list {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .faq-item {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+    }
+
+    .faq-item h3 {
+      font-size: 0.98rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .faq-item p {
+      color: var(--color-text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.8;
+    }
+
+    /* ── Tech Specs ── */
+    .specs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .spec-tag {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 100px;
+      padding: 8px 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1px solid var(--color-border);
+      padding: 40px 0;
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      color: var(--color-text-secondary);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    .footer-links a:hover {
+      color: var(--color-primary);
+    }
+
+    .footer-copy {
+      font-size: 0.82rem;
+      color: var(--color-text-secondary);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .header-nav {
+        display: none;
+      }
+
+      .hero {
+        padding: 56px 0 40px;
+      }
+
+      .hero-screenshot-inner {
+        padding: 24px 20px;
+        flex-direction: column;
+      }
+
+      .section {
+        padding: 56px 0;
+      }
+
+      .data-usage {
+        grid-template-columns: 1fr;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .steps {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-arrow {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-inner">
+      <div class="logo">
+        <img src="task_bookmark_icon.png" alt="タスクブックマーク" width="36" height="36" style="border-radius:8px;">
+        タスクブックマーク
+      </div>
+      <nav>
+        <ul class="header-nav">
+          <li><a href="#features">機能</a></li>
+          <li><a href="#how-it-works">使い方</a></li>
+          <li><a href="#data-usage">データの利用</a></li>
+          <li><a href="#faq">よくある質問</a></li>
+          <li><a href="privacy_policy.html">プライバシーポリシー</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Chrome 拡張機能 &middot; Manifest V3
+      </div>
+      <h1>ブラウザの作業状態を<br><span>ワンクリックで保存・復元</span></h1>
+      <p class="hero-lead">
+        タスクブックマークは、Chromeで開いている全てのタブを「仕事の状態」としてGoogle Calendarに保存し、いつでもワンクリックで復元できる拡張機能です。作業の中断と再開を、劇的にスムーズにします。
+      </p>
+      <a href="https://chromewebstore.google.com/detail/%E3%82%BF%E3%82%B9%E3%82%AF%E3%83%96%E3%83%83%E3%82%AF%E3%83%9E%E3%83%BC%E3%82%AF/donneoijgifbeofeolobnhggljeceeoc" class="hero-cta">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Chrome Web Store で入手
+      </a>
+
+      <div class="hero-screenshot">
+        <div class="hero-screenshot-inner">
+          <div class="screenshot-flow">
+            <div class="flow-step">
+              <div class="flow-step-icon">
+                <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="9"/></svg>
+              </div>
+              <span class="flow-step-label">作業中のタブ</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step">
+              <div class="flow-step-icon" style="background:#fef3c7;color:#d97706;">
+                <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+              </div>
+              <span class="flow-step-label">ワンクリック保存</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step">
+              <div class="flow-step-icon" style="background:#fef3c7;color:#d97706;">
+                <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+              <span class="flow-step-label">Google Calendar</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step">
+              <div class="flow-step-icon" style="background:#d1fae5;color:#059669;">
+                <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              </div>
+              <span class="flow-step-label">ワンクリック復元</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <h2>主な機能</h2>
+        <p>ブックマークを保存するのと同じ手軽さで、作業環境をまるごと保存・復元できます。</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--save">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+          </div>
+          <h3>ワンクリック保存</h3>
+          <p>すべてのChromeウィンドウで開いているタブを、仕事名とメモを付けて一括保存。保存後は新しいウィンドウが開き、すぐに次のタスクに取りかかれます。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--calendar">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <h3>Google Calendar 連携</h3>
+          <p>作業状態は専用カレンダーに自動保存。時系列で管理されるので、過去の作業履歴をカレンダー上で直感的に確認できます。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--restore">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          </div>
+          <h3>ワンクリック復元</h3>
+          <p>保存した作業状態を、新しいウィンドウにすべてのタブを一括復元。サイドパネルの一覧からも、Google Calendarの予定からも復元できます。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--chain">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <h3>仕事の前後関係を追跡</h3>
+          <p>どの仕事から復元されたかを自動記録。作業の流れを可視化し、タスクの引き継ぎや振り返りに役立ちます。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--edit">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          </div>
+          <h3>保存後の編集</h3>
+          <p>保存した仕事の名前やメモを後から編集可能。機密情報を含むURLを削除するなど、柔軟に管理できます。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon--secure">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h3>安全なデータ管理</h3>
+          <p>すべてのデータはあなたのGoogle Calendarに保存されます。開発者がデータにアクセスすることは一切ありません。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="section section--alt" id="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <h2>使い方</h2>
+        <p>3つのステップで、すぐに始められます。</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <h3>インストール &amp; 認証</h3>
+          <p>Chrome Web Storeからインストールし、Googleアカウントで認証するだけで準備完了です。</p>
+        </div>
+        <div class="step">
+          <h3>作業状態を保存</h3>
+          <p>作業中にサイドパネルから「保存」をクリック。仕事名とメモを入力すれば、全タブがカレンダーに保存されます。</p>
+        </div>
+        <div class="step">
+          <h3>ワンクリックで復元</h3>
+          <p>保存済みの仕事を選んで「復元」をクリック。新しいウィンドウに、当時のタブが全て開きます。</p>
+        </div>
+        <div class="step">
+          <h3>履歴を活用</h3>
+          <p>Google Calendarで作業履歴を時系列で確認。仕事の前後関係も記録されているので、振り返りに最適です。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Data Usage (OAuth Transparency) -->
+  <section class="section" id="data-usage">
+    <div class="container">
+      <div class="section-header">
+        <h2>データの利用について</h2>
+        <p>タスクブックマークは、ユーザーのプライバシーとデータの安全性を最重要視しています。</p>
+      </div>
+      <div class="data-usage">
+        <div class="data-card">
+          <h3>
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            アクセスするデータ
+          </h3>
+          <ul>
+            <li>
+              <span class="check check--blue"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span><strong>Google Calendar のイベント情報</strong>: 作業状態（タブのURL・タイトル）を専用カレンダーのイベントとして保存・読み込みするために使用します。</span>
+            </li>
+            <li>
+              <span class="check check--blue"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span><strong>Chrome のタブ・ウィンドウ情報</strong>: 現在開いているタブのURL・タイトルを取得し、保存対象として使用します。</span>
+            </li>
+          </ul>
+          <div class="scope-badge">OAuth スコープ: https://www.googleapis.com/auth/calendar</div>
+        </div>
+        <div class="data-card">
+          <h3>
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            データの安全性
+          </h3>
+          <ul>
+            <li>
+              <span class="check check--green"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span>すべてのデータは<strong>あなたのGoogle Calendarにのみ</strong>保存されます。開発者の独自サーバーには一切保存しません。</span>
+            </li>
+            <li>
+              <span class="check check--green"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span>開発者がユーザーのデータに<strong>アクセスすることは一切ありません</strong>。</span>
+            </li>
+            <li>
+              <span class="check check--green"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span>第三者への<strong>データの共有・販売は行いません</strong>。</span>
+            </li>
+            <li>
+              <span class="check check--green"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span>通信はすべて<strong>HTTPS</strong>で暗号化されています。</span>
+            </li>
+            <li>
+              <span class="check check--green"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span>認証は<strong>OAuth 2.0</strong>に準拠し、必要最小限のスコープのみを要求します。</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section section--alt" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <h2>よくある質問</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <h3>私のデータはどこに保存されますか？</h3>
+          <p>すべてのデータは、あなたのGoogleアカウントのGoogle Calendarに保存されます。拡張機能の開発者が独自のサーバーに保存したり、第三者と共有することはありません。</p>
+        </div>
+        <div class="faq-item">
+          <h3>なぜGoogle Calendarへのアクセスが必要なのですか？</h3>
+          <p>タスクブックマークは、あなたの作業状態（開いているタブのURL・タイトル）をGoogle Calendarのイベントとして保存・管理するために、カレンダーへのアクセスを必要としています。保存された情報は時系列で管理され、作業履歴として活用できます。</p>
+        </div>
+        <div class="faq-item">
+          <h3>拡張機能をアンインストールした場合、データはどうなりますか？</h3>
+          <p>カレンダー上のデータはそのまま残ります。データを削除したい場合は、Google Calendarから手動で削除できます。拡張機能を再インストールした場合は、既存のカレンダーを引き続き利用できます。</p>
+        </div>
+        <div class="faq-item">
+          <h3>対応しているブラウザは何ですか？</h3>
+          <p>現在はGoogle Chrome（バージョン120以上）のみに対応しています。Manifest V3に準拠しており、Windows、macOS、Linuxで動作します。</p>
+        </div>
+        <div class="faq-item">
+          <h3>機密情報を含むURLが保存される可能性はありますか？</h3>
+          <p>URLにセッションIDやトークンが含まれる可能性があります。保存後にURLを編集・削除できる機能を提供しており、機密情報を含むURLを管理できます。</p>
+        </div>
+        <div class="faq-item">
+          <h3>無料で利用できますか？</h3>
+          <p>はい。タスクブックマークは無料でご利用いただけます。Chrome Web Storeからインストールするだけですぐにお使いいただけます。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Specs -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2>技術仕様</h2>
+        <p>最新のChrome拡張機能規格に準拠し、安全で高性能な設計です。</p>
+      </div>
+      <div class="specs">
+        <span class="spec-tag">Chrome 120+</span>
+        <span class="spec-tag">Manifest V3</span>
+        <span class="spec-tag">OAuth 2.0</span>
+        <span class="spec-tag">TypeScript</span>
+        <span class="spec-tag">Google Calendar API</span>
+        <span class="spec-tag">Side Panel API</span>
+        <span class="spec-tag">Service Worker</span>
+        <span class="spec-tag">HTTPS通信</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <nav class="footer-links">
+        <a href="privacy_policy.html">プライバシーポリシー</a>
+        <a href="#features">機能</a>
+        <a href="#data-usage">データの利用</a>
+        <a href="#faq">よくある質問</a>
+        <a href="https://github.com/tamagoya/task_bookmark" rel="noopener noreferrer" target="_blank">GitHub</a>
+      </nav>
+
+    </div>
+  </footer>
+
+</body>
+</html>
