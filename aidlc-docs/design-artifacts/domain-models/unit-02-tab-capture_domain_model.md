@@ -228,6 +228,11 @@ const tabInfo = TabInfoFactory.createFromRawData({
 - **提供**: `TabInfo[]` - UI表示用のタブ情報を提供
 - **使用**: サイドパネルでタブ一覧を表示
 
+### Unit 7 (URL Filter)（2026-05-28 追加）
+- **提供**: `TabInfo[]` を判定対象として `IgnoreRulesAggregate` に渡す
+- **使用**: `IgnoreRulesAggregate.isIgnoredOnSave(tab.url)` と `isIgnoredOnClose(tab.url)` を呼び、保存対象・閉じ対象から除外する
+- **整合**: TabInfo の URL フィールドは `String` であり、Unit-7 の `IgnorePattern.matches()` の引数として直接利用可能
+
 ---
 
 ## 実装上の注意事項

@@ -322,6 +322,10 @@ describe('TabCaptureService', () => {
       expect(tabsAdapter.getAllTabs).toHaveBeenCalledTimes(1);
       expect(result.tabs).toHaveLength(2);
       expect(result.tabIds).toEqual([1, 2]);
+      expect(result.tabIdUrlPairs).toEqual([
+        { tabId: 1, url: 'https://example.com' },
+        { tabId: 2, url: 'https://other.com' },
+      ]);
       expect(result.tabs[0]).toBeInstanceOf(TabInfo);
       expect(eventHandler.handleTabsCaptured).toHaveBeenCalledTimes(1);
       const event = eventHandler.handleTabsCaptured.mock.calls[0][0];
@@ -335,6 +339,7 @@ describe('TabCaptureService', () => {
 
       expect(result.tabs).toHaveLength(0);
       expect(result.tabIds).toHaveLength(0);
+      expect(result.tabIdUrlPairs).toHaveLength(0);
       expect(eventHandler.handleTabsCaptured).not.toHaveBeenCalled();
     });
 

@@ -293,6 +293,33 @@
 
 ---
 
+#### Settings (Ignore URL Rules) Component（新規、2026-05-28、US-10）
+**責任**: 無視URLルールのCRUD UI（サイドパネル内の「設定」セクション）を提供する
+
+**主要機能**:
+- ルール一覧表示（カード or テーブル、`enabled` を視覚的に区別、ルール件数 / 100 を表示）
+- 「ルールを追加」フォーム（pattern, ignoreOnSave, ignoreOnClose, ignoreOnRestore, label, enabled）
+- 既存ルールの編集（同一フォームを再利用、ID指定で更新モード）
+- 削除ボタン（確認ダイアログ）
+- `enabled` トグルスイッチ
+- バリデーションエラー表示（pattern 空 / 全フラグ false / 重複 / 上限超過 / label 長すぎ）
+- ヘルプ吹き出し: 「短すぎるパターン（`com`、`http` 等）は推奨しません」
+- 無視URLルール変更時、Service Worker への通知は不要（次回の保存・復元処理時に最新ルールが読み込まれる）
+
+**XSS 対策**:
+- `pattern` `label` の表示は `textContent` で行う。`innerHTML` は禁止
+- DOM API（`document.createElement`、`textContent`、`appendChild`）でツリーを構築する
+
+**実装ファイル**:
+- `FRONTEND/sidepanel/sidepanel.html` (settings-section)
+- `FRONTEND/sidepanel/sidepanel.ts` (renderIgnoreRules, openIgnoreRuleForm, submitIgnoreRule, removeIgnoreRule, toggleIgnoreRule)
+- `FRONTEND/sidepanel/sidepanel.css` (.ignore-rule-card, .ignore-rule-form ほか)
+
+**依存関係**:
+- Application Layer (`IgnoreRulesService`、Unit-7)
+
+---
+
 ### 2. アプリケーション層 (Application Layer)
 
 **責任**: ユースケースの実装、プレゼンテーション層とドメイン層の調整

@@ -823,3 +823,266 @@ header h1 {
   background-color: #ff9800;
   color: #fff;
 }
+
+/* Unit-7: 無視URL設定 */
+#ignore-rules-section {
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+.ignore-rules-details {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.ignore-rules-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #1a1a1a;
+  user-select: none;
+  list-style: none;
+}
+
+.ignore-rules-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ignore-rules-summary::before {
+  content: '▶';
+  font-size: 10px;
+  color: #5f6368;
+  margin-right: 6px;
+  transition: transform 0.2s;
+}
+
+.ignore-rules-details[open] .ignore-rules-summary::before {
+  transform: rotate(90deg);
+}
+
+.ignore-rules-summary-title {
+  flex: 1;
+}
+
+.ignore-rules-count {
+  font-weight: 400;
+  font-size: 12px;
+  color: #5f6368;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.ignore-rules-body {
+  padding: 8px 14px 14px 14px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #fff;
+}
+
+.ignore-rules-description {
+  font-size: 12px;
+  color: #5f6368;
+  margin: 8px 0 12px 0;
+  line-height: 1.5;
+}
+
+.ignore-rule-add-form .form-group {
+  margin-bottom: 10px;
+}
+
+.ignore-rule-add-form label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.ignore-rule-add-form input[type='text'] {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.ignore-rule-add-form input[type='text']:focus {
+  border-color: #1a73e8;
+}
+
+.ignore-rule-flags {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.ignore-rule-flags legend {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  padding: 0 6px;
+}
+
+.ignore-rule-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #1a1a1a;
+  margin: 4px 0;
+  cursor: pointer;
+}
+
+.ignore-rule-flag input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.ignore-rule-error {
+  background-color: #fdecea;
+  color: #b71c1c;
+  border: 1px solid #f5c2c0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.ignore-rule-add-form button[type='submit'] {
+  margin-top: 4px;
+  padding: 10px 16px;
+}
+
+.ignore-rules-list {
+  list-style: none;
+  margin: 16px 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ignore-rules-empty {
+  font-size: 12px;
+  color: #5f6368;
+  text-align: center;
+  padding: 12px;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+.ignore-rule-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background-color: #fff;
+}
+
+.ignore-rule-item.disabled {
+  background-color: #fafafa;
+  opacity: 0.7;
+}
+
+.ignore-rule-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ignore-rule-item-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ignore-rule-item-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ignore-rule-item-pattern {
+  font-size: 12px;
+  color: #5f6368;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ignore-rule-item-toggle {
+  flex-shrink: 0;
+}
+
+.ignore-rule-item-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ignore-rule-flag-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: #e8f0fe;
+  color: #1a73e8;
+  border: 1px solid #d2e3fc;
+}
+
+.ignore-rule-flag-chip.flag-close {
+  background-color: #fef7e0;
+  color: #b06000;
+  border-color: #feefc3;
+}
+
+.ignore-rule-flag-chip.flag-restore {
+  background-color: #e6f4ea;
+  color: #1e8e3e;
+  border-color: #ceead6;
+}
+
+.ignore-rule-item-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.ignore-rule-action-button {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  background-color: #fff;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.ignore-rule-action-button:hover {
+  background-color: #f1f3f4;
+}
+
+.ignore-rule-action-button.danger {
+  color: #b71c1c;
+  border-color: #f5c2c0;
+}
+
+.ignore-rule-action-button.danger:hover {
+  background-color: #fdecea;
+}

@@ -2,6 +2,7 @@ import { ChromeWindowsAdapter } from '../../infrastructure/adapters/chrome-windo
 import { ChromeTabsAdapter } from '../../infrastructure/adapters/chrome-tabs-adapter';
 import { CalendarEventService } from './calendar-event-service';
 import { TabRestoreManager } from './tab-restore-manager';
+import { IgnoreRulesService } from './ignore-rules-service';
 import { Logger } from '../../infrastructure/adapters/logger';
 import { EventId } from '../../domain/value-objects/event-id';
 import { CalendarId } from '../../domain/value-objects/calendar-id';
@@ -20,7 +21,9 @@ export class RestoreService {
     private readonly calendarEventService: CalendarEventService,
     private readonly tabRestoreManager: TabRestoreManager,
     // 将来の拡張用に保持（詳細なログ出力など）
-    logger: Logger
+    logger: Logger,
+    // Unit-7: 無視URL設定（任意。未指定なら復元時のフィルタはスキップ）
+    private readonly ignoreRulesService?: IgnoreRulesService
   ) {
     // 将来の拡張用に保持
     void chromeTabsAdapter;
@@ -52,8 +55,19 @@ export class RestoreService {
       throw new Error(`WorkState has no tabs: ${eventId.value}`);
     }
 
+    // Unit-7: 無視URL設定で「復元時に開かない」タブをフィルタ
+    let restoreTabs = workState.metadata.tabs;
+    if (this.ignoreRulesService) {
+      restoreTabs = await this.ignoreRulesService.filterTabsForRestore(restoreTabs);
+      if (restoreTabs.length === 0) {
+        throw new Error(
+          'すべてのタブが無視URL設定で復元対象外です。設定を見直してください。'
+        );
+      }
+    }
+
     // 2. 新しいウィンドウを最初のタブのURLで作成（デフォルトの「新しいタブ」を避ける）
-    const firstTabUrl = workState.metadata.tabs[0].url;
+    const firstTabUrl = restoreTabs[0].url;
     const window = await this.chromeWindowsAdapter.createWindow([firstTabUrl]);
 
     if (!window.id) {
@@ -65,7 +79,7 @@ export class RestoreService {
     const tabIds: number[] = firstTabId ? [firstTabId] : [];
 
     // 3. 残りのタブを順番通りに復元（段階的読み込み）
-    const remainingTabs = workState.metadata.tabs.slice(1);
+    const remainingTabs = restoreTabs.slice(1);
     if (remainingTabs.length > 0) {
       const remainingTabIds = await this.tabRestoreManager.restoreTabsInOrder(
         remainingTabs,

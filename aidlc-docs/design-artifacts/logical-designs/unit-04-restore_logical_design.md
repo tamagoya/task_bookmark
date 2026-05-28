@@ -57,16 +57,20 @@
 **実装フロー**:
 1. 呼び出し元（サイドパネルまたは **Content Script（Google Calendar 予定詳細）**）から `RESTORE_WORK_STATE` メッセージ（payload: `{ eventId }`）でトリガー
 2. `CalendarEventService.findById()`でWorkStateを取得
-3. `ChromeWindowsAdapter.createWindow()`で新しいウィンドウを作成
-4. `TabRestoreManager.restoreTabsInOrder()`でタブを順番通りに復元（段階的読み込み）
-5. `CalendarEventService.recordRestore()`で復元メタデータを記録
-6. プログレス通知（`onProgress`コールバック）
-7. 戻り値に `windowId`, `tabIds`, `title`（workState.title.value）を返す
+3. **(2026-05-28 追加)** `IgnoreRulesService.filterTabsForRestore(workState.tabs)` で `ignoreOnRestore=true` のルールに部分一致するタブを除外し、`tabsToRestore` を確定する。**WorkState 自体は変更しない（履歴保持）**
+4. **(2026-05-28 追加)** `tabsToRestore.length === 0` の場合、新規ウィンドウを作らず `{ windowId: undefined, tabIds: [], title, ignoredAll: true }` 等の戻り値で UI に通知し、UI は警告メッセージを表示する
+5. `ChromeWindowsAdapter.createWindow()`で新しいウィンドウを作成
+6. `TabRestoreManager.restoreTabsInOrder(tabsToRestore, ...)`でタブを順番通りに復元（段階的読み込み）
+7. `CalendarEventService.recordRestore()`で復元メタデータを記録（フィルタの有無に関わらず元イベントID基準）
+8. プログレス通知（`onProgress`コールバック）
+9. 戻り値に `windowId`, `tabIds`, `title`（workState.title.value）を返す
+
+> **ルール未登録時**: ステップ3のフィルタは空集合を返し、ステップ4は不発、以降は従来挙動。
 
 **依存関係**:
 - Domain Layer (WorkState, EventId, TabInfo)
 - Infrastructure Layer (ChromeWindowsAdapter, ChromeTabsAdapter, Logger)
-- Application Layer (CalendarEventService, TabRestoreManager)
+- Application Layer (CalendarEventService, TabRestoreManager, IgnoreRulesService（Unit-7・2026-05-28追加）)
 
 #### TabRestoreManager
 タブの復元処理と順序管理を担当するマネージャーです。

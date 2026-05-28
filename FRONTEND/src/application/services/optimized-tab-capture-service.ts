@@ -79,10 +79,14 @@ export class OptimizedTabCaptureService {
   /**
    * すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
    * キャッシュは使用しない（全ウィンドウは変更頻度が高いため）
-   * @returns タブ情報の配列とタブIDの配列
+   * @returns タブ情報の配列、タブIDの配列、tabId-URLのペア配列
    * @throws タブ取得エラー
    */
-  async getAllWindowsTabs(): Promise<{ tabs: TabInfo[]; tabIds: number[] }> {
+  async getAllWindowsTabs(): Promise<{
+    tabs: TabInfo[];
+    tabIds: number[];
+    tabIdUrlPairs: Array<{ tabId: number; url: string }>;
+  }> {
     return this.performanceInterceptor.intercept(
       'getAllWindowsTabs',
       () => this.baseService.getAllWindowsTabs()

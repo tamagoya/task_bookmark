@@ -100,10 +100,16 @@ export class TabCaptureService {
   /**
    * すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
    * タブの順序はウィンドウID昇順・同一ウィンドウ内はindex昇順。
-   * @returns タブ情報の配列とタブIDの配列（保存後の一括閉じ用）
+   * @returns タブ情報の配列、タブIDの配列、（tabId, url）ペア配列
    * @throws タブ取得エラー
+   *
+   * tabIdUrlPairs は閉じる無視ルールのフィルタ用。TabInfo 化に失敗したタブも url を保持して含める。
    */
-  async getAllWindowsTabs(): Promise<{ tabs: TabInfo[]; tabIds: number[] }> {
+  async getAllWindowsTabs(): Promise<{
+    tabs: TabInfo[];
+    tabIds: number[];
+    tabIdUrlPairs: Array<{ tabId: number; url: string }>;
+  }> {
     try {
       const startTime = Date.now();
 
@@ -111,14 +117,16 @@ export class TabCaptureService {
 
       const tabInfos: TabInfo[] = [];
       const tabIds: number[] = [];
+      const tabIdUrlPairs: Array<{ tabId: number; url: string }> = [];
 
       for (const chromeTab of chromeTabs) {
+        if (chromeTab.id !== undefined) {
+          tabIds.push(chromeTab.id);
+          tabIdUrlPairs.push({ tabId: chromeTab.id, url: chromeTab.url ?? '' });
+        }
         try {
           const tabInfo = TabInfoFactory.createFromChromeTab(chromeTab);
           tabInfos.push(tabInfo);
-          if (chromeTab.id !== undefined) {
-            tabIds.push(chromeTab.id);
-          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           this.logger.warn(`Failed to create TabInfo from Chrome Tab ${chromeTab.id}: ${errorMessage}`);
@@ -133,7 +141,7 @@ export class TabCaptureService {
         await this.eventHandler.handleTabsCaptured(event);
       }
 
-      return { tabs: tabInfos, tabIds };
+      return { tabs: tabInfos, tabIds, tabIdUrlPairs };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to get all windows tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));

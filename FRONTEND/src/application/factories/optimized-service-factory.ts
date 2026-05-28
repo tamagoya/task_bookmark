@@ -19,6 +19,7 @@ import { CalendarEventService } from '../services/calendar-event-service';
 import { TabCaptureService } from '../services/tab-capture-service';
 import { RestoreService } from '../services/restore-service';
 import { TabRestoreManager } from '../services/tab-restore-manager';
+import { IgnoreRulesService } from '../services/ignore-rules-service';
 
 /**
  * OptimizedServiceFactory
@@ -109,12 +110,14 @@ export class OptimizedServiceFactory {
   /**
    * 最適化されたRestoreServiceを作成
    * ベースのRestoreServiceをラップしてパフォーマンス監視を追加
+   * Unit-7: ignoreRulesService を渡すと復元時に無視URLをフィルタする
    */
   createOptimizedRestoreService(
     chromeWindowsAdapter: ChromeWindowsAdapter,
     chromeTabsAdapter: ChromeTabsAdapter,
     calendarEventService: CalendarEventService,
-    _optimizedTabRestoreManager: OptimizedTabRestoreManager
+    _optimizedTabRestoreManager: OptimizedTabRestoreManager,
+    ignoreRulesService?: IgnoreRulesService
   ): OptimizedRestoreService {
     // 将来の拡張用に保持（現在はbaseServiceが独自のTabRestoreManagerを使用）
     void _optimizedTabRestoreManager;
@@ -131,7 +134,8 @@ export class OptimizedServiceFactory {
       chromeTabsAdapter,
       calendarEventService,
       baseTabRestoreManager,
-      this.logger
+      this.logger,
+      ignoreRulesService
     );
 
     // ベースサービスをラップして最適化機能を追加

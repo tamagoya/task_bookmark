@@ -18,6 +18,9 @@ import { TabInfo } from '../src/domain/value-objects/tab-info';
 import { ErrorHandlingService } from '../src/application/services/error-handling-service';
 // Bolt 10: パフォーマンス最適化
 import { OptimizedServiceFactory } from '../src/application/factories/optimized-service-factory';
+// Unit-7: 無視URL設定
+import { ChromeStorageIgnoreRulesRepository } from '../src/infrastructure/repositories/chrome-storage-ignore-rules-repository';
+import { IgnoreRulesService } from '../src/application/services/ignore-rules-service';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -59,15 +62,27 @@ const optimizedCalendarEventService = optimizedServiceFactory.createOptimizedCal
 
 const optimizedTabRestoreManager = optimizedServiceFactory.createOptimizedTabRestoreManager(tabsAdapter);
 
+// Unit-7: 無視URL設定（RestoreService から参照するため先に初期化）
+const ignoreRulesRepository = new ChromeStorageIgnoreRulesRepository(logger);
+const ignoreRulesService = new IgnoreRulesService(ignoreRulesRepository, logger);
+
 const optimizedRestoreService = optimizedServiceFactory.createOptimizedRestoreService(
   windowsAdapter,
   tabsAdapter,
   calendarEventService, // 非最適化版を使用（recordRestoreのため）
-  optimizedTabRestoreManager
+  optimizedTabRestoreManager,
+  ignoreRulesService // Unit-7: 復元時の無視URLフィルタ
 );
 
 // Bolt 7: 前後関係取得のための依存関係
 const restoreRelationService = new RestoreRelationService(calendarEventRepository, logger);
+
+// 設定が外部（サイドパネル等）から変更された場合にキャッシュを無効化
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.ignoreRules) {
+    ignoreRulesService.invalidateCache();
+  }
+});
 
 // ログ: パフォーマンス最適化サービスの初期化完了
 logger.info('Performance optimized services initialized');
@@ -144,11 +159,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             }
 
             // タブ情報を取得（全ウィンドウ、Bolt 10: パフォーマンス最適化）
-            const { tabs, tabIds } = await optimizedTabCaptureService.getAllWindowsTabs();
+            const { tabs, tabIdUrlPairs } = await optimizedTabCaptureService.getAllWindowsTabs();
             if (tabs.length === 0) {
               sendResponse({ success: false, error: 'No tabs to save' });
               break;
             }
+
+            // Unit-7: 無視URL設定で「保存対象から除外」されるタブをフィルタ
+            const filteredTabsForSave = await ignoreRulesService.filterTabsForSave(tabs);
+            if (filteredTabsForSave.length === 0) {
+              sendResponse({
+                success: false,
+                error:
+                  'すべてのタブが無視URL設定で保存対象外です。設定を見直してください。',
+              });
+              break;
+            }
+            // index を 0 から振り直す（保存後の順序維持のため）
+            const reindexedTabs = filteredTabsForSave.map((t, i) =>
+              TabInfo.create({
+                url: t.url,
+                title: t.title,
+                faviconUrl: t.faviconUrl,
+                index: i,
+                extensions: t.extensions,
+              })
+            );
+
+            // Unit-7: 「閉じる無視」フラグに該当しないタブIDだけを閉じる対象とする
+            const closeTargetTabIds =
+              await ignoreRulesService.filterTabIdsForClose(tabIdUrlPairs);
 
             // 復元元のイベントIDと復元時刻を取得（Bolt 7: 復元後に保存する際に使用）
             const storageData = await chrome.storage.local.get(['lastRestoredEventId', 'lastRestoredAtTime']);
@@ -160,8 +200,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               : undefined;
 
             // カレンダーイベントとして保存（Bolt 10: パフォーマンス最適化）
+            // Unit-7: 保存対象は ignoreOnSave でフィルタ済みの reindexedTabs を使用
             const eventId = await optimizedCalendarEventService.createWorkStateEvent(
-              tabs,
+              reindexedTabs,
               title,
               authState.calendarId,
               authState.accessToken,
@@ -184,13 +225,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // 既存ウィンドウのタブを1つ残して遷移させることでサイドパネルを開いたまま保持する
             try {
               let keepTabId: number | undefined;
+              // Unit-7: keepTabId が「閉じない」対象だった場合、URL書き換えもスキップする
+              let keepTabIsIgnoredOnClose = false;
               try {
                 // サイドパネルが開いているウィンドウ（最後にフォーカスされたウィンドウ）のアクティブタブを取得
                 const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
                 if (activeTabs.length > 0 && activeTabs[0].id !== undefined) {
                   keepTabId = activeTabs[0].id;
-                  // そのタブを新しいタブページに遷移させる（ウィンドウが閉じないようにする）
-                  await chrome.tabs.update(keepTabId, { url: 'chrome://newtab' });
+                  // 「閉じない」対象は closeTargetTabIds に含まれない
+                  // → keepTabId が closeTargetTabIds に含まれない場合は、書き換えずにそのまま残す
+                  //   （例: Google Meet 通話を切断させない）
+                  keepTabIsIgnoredOnClose = !closeTargetTabIds.includes(keepTabId);
+                  if (!keepTabIsIgnoredOnClose) {
+                    // 通常タブはそのまま閉じるとウィンドウごと消えるため新タブに遷移させて維持
+                    await chrome.tabs.update(keepTabId, { url: 'chrome://newtab' });
+                  }
                 }
               } catch (preserveError) {
                 logger.warn(
@@ -198,12 +247,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                   preserveError instanceof Error ? preserveError : new Error(String(preserveError))
                 );
                 keepTabId = undefined;
+                keepTabIsIgnoredOnClose = false;
               }
 
               // 保存対象のタブを閉じる（keepTabId は除外して残す）
+              // Unit-7: ignoreOnClose に該当するタブは closeTargetTabIds に既に含まれていない
               const tabsToClose = keepTabId !== undefined
-                ? tabIds.filter(id => id !== keepTabId)
-                : tabIds;
+                ? closeTargetTabIds.filter(id => id !== keepTabId)
+                : closeTargetTabIds;
               await optimizedTabCaptureService.closeAllCapturedTabs(tabsToClose);
 
               // フォールバック: タブの維持に失敗した場合は新規ウィンドウを作成
@@ -547,6 +598,137 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse({ 
               success: false, 
               error: error instanceof Error ? error.message : String(error) 
+            });
+          }
+          break;
+
+        case 'GET_IGNORE_RULES': // Unit-7: 無視URL設定
+          try {
+            const rules = await ignoreRulesService.listRules();
+            sendResponse({
+              success: true,
+              rules: rules.map((r) => ({
+                id: r.id,
+                pattern: r.pattern.value,
+                ignoreOnSave: r.flags.ignoreOnSave,
+                ignoreOnClose: r.flags.ignoreOnClose,
+                ignoreOnRestore: r.flags.ignoreOnRestore,
+                label: r.label,
+                enabled: r.enabled,
+                createdAt: r.createdAt.toISOString(),
+                updatedAt: r.updatedAt.toISOString(),
+              })),
+            });
+          } catch (error) {
+            logger.error(
+              'Failed to get ignore rules',
+              error instanceof Error ? error : new Error(String(error))
+            );
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          break;
+
+        case 'ADD_IGNORE_RULE': // Unit-7: 無視URL設定
+          try {
+            const { pattern, ignoreOnSave, ignoreOnClose, ignoreOnRestore, label, enabled } =
+              message.payload as {
+                pattern: string;
+                ignoreOnSave: boolean;
+                ignoreOnClose: boolean;
+                ignoreOnRestore: boolean;
+                label?: string;
+                enabled?: boolean;
+              };
+            const rule = await ignoreRulesService.addRule({
+              pattern,
+              ignoreOnSave,
+              ignoreOnClose,
+              ignoreOnRestore,
+              label,
+              enabled,
+            });
+            sendResponse({
+              success: true,
+              rule: {
+                id: rule.id,
+                pattern: rule.pattern.value,
+                ignoreOnSave: rule.flags.ignoreOnSave,
+                ignoreOnClose: rule.flags.ignoreOnClose,
+                ignoreOnRestore: rule.flags.ignoreOnRestore,
+                label: rule.label,
+                enabled: rule.enabled,
+                createdAt: rule.createdAt.toISOString(),
+                updatedAt: rule.updatedAt.toISOString(),
+              },
+            });
+          } catch (error) {
+            logger.error(
+              'Failed to add ignore rule',
+              error instanceof Error ? error : new Error(String(error))
+            );
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          break;
+
+        case 'UPDATE_IGNORE_RULE': // Unit-7: 無視URL設定
+          try {
+            const { id, patch } = message.payload as {
+              id: string;
+              patch: {
+                pattern?: string;
+                ignoreOnSave?: boolean;
+                ignoreOnClose?: boolean;
+                ignoreOnRestore?: boolean;
+                label?: string;
+                enabled?: boolean;
+              };
+            };
+            const rule = await ignoreRulesService.updateRule(id, patch);
+            sendResponse({
+              success: true,
+              rule: {
+                id: rule.id,
+                pattern: rule.pattern.value,
+                ignoreOnSave: rule.flags.ignoreOnSave,
+                ignoreOnClose: rule.flags.ignoreOnClose,
+                ignoreOnRestore: rule.flags.ignoreOnRestore,
+                label: rule.label,
+                enabled: rule.enabled,
+                createdAt: rule.createdAt.toISOString(),
+                updatedAt: rule.updatedAt.toISOString(),
+              },
+            });
+          } catch (error) {
+            logger.error(
+              'Failed to update ignore rule',
+              error instanceof Error ? error : new Error(String(error))
+            );
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          break;
+
+        case 'REMOVE_IGNORE_RULE': // Unit-7: 無視URL設定
+          try {
+            const { id } = message.payload as { id: string };
+            await ignoreRulesService.removeRule(id);
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error(
+              'Failed to remove ignore rule',
+              error instanceof Error ? error : new Error(String(error))
+            );
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
             });
           }
           break;

@@ -1,6 +1,6 @@
 {
   "name": "task-bookmark-extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "タスクブックマーク Chrome拡張機能",
   "type": "module",
   "scripts": {

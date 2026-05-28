@@ -77,9 +77,16 @@
 
 - 新規ウィンドウ作成: ChromeWindowsAdapter.createWindow(['about:newtab']) を呼び出し、新しいタブを1つだけ開いたウィンドウを表示する（保存成功後に Service Worker から実行）
 
+**無視URL設定との連携（2026-05-28 追加、Unit-7）**:
+- Service Worker の `SAVE_WORK_STATE` ハンドラ内で、TabCaptureService が直接判定するのではなく、Unit-7 の `IgnoreRulesService` を呼び出してフィルタを適用する
+- 保存対象フィルタ: `IgnoreRulesService.filterTabsForSave(tabs)` で `ignoreOnSave=true` のタブを除外
+- 閉じる対象フィルタ: 保存対象とは独立に `tabs` 全体に対して `IgnoreRulesService.filterTabIdsForClose(tabs)` を適用し、`ignoreOnClose=true` のタブIDを除外したID集合を `closeAllCapturedTabs(...)` に渡す
+- ルール未登録時はフィルタが空集合を返し、従来挙動と完全に一致する
+
 **依存関係**:
 - Domain Layer (TabInfo Value Object, TabInfoFactory, TabsCaptured Domain Event)
 - Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter, Logger)
+- Application Layer (IgnoreRulesService, Unit-7・2026-05-28追加)
 
 **パフォーマンス最適化**:
 - `chrome.tabs.query`を使用して一括取得（並列処理）

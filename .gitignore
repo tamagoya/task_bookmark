@@ -1,11 +1,18 @@
 .cursor/
 .claude/
+.DS_Store 
 
 # 機密情報を含むファイル
 FRONTEND/manifest.json
 
 # ローカル開発用ファイル
 *.local
+
+# Chat入力の代わり
+request/*
+
+# ビルド成果物
+FRONTEND/task-bookmark-extension.zip
 
 CLAUDE.md
 .mcp.json

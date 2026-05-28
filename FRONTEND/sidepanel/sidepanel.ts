@@ -768,17 +768,22 @@ async function updateUIForAuthStatus(isAuthenticated: boolean): Promise<void> {
   const saveSection = document.getElementById('save-section');
   const workStatesSection = document.getElementById('work-states-section');
 
+  const ignoreRulesSection = document.getElementById('ignore-rules-section');
+
   if (isAuthenticated) {
     if (tabsSection) tabsSection.style.display = 'block';
     if (saveSection) saveSection.style.display = 'block';
     if (workStatesSection) workStatesSection.style.display = 'block';
+    if (ignoreRulesSection) ignoreRulesSection.style.display = 'block';
     await loadCurrentTabs();
     await applyLastRestoredSession();
     await loadWorkStateEvents('all');
+    await loadIgnoreRules();
   } else {
     if (tabsSection) tabsSection.style.display = 'none';
     if (saveSection) saveSection.style.display = 'none';
     if (workStatesSection) workStatesSection.style.display = 'none';
+    if (ignoreRulesSection) ignoreRulesSection.style.display = 'none';
   }
 }
 
@@ -1202,6 +1207,283 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// ============================================================
+// Unit-7: 無視URL設定（Ignore URL Rules）
+// ============================================================
+
+interface IgnoreRuleDto {
+  id: string;
+  pattern: string;
+  ignoreOnSave: boolean;
+  ignoreOnClose: boolean;
+  ignoreOnRestore: boolean;
+  label?: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+let ignoreRulesCache: IgnoreRuleDto[] = [];
+
+async function loadIgnoreRules(): Promise<void> {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_IGNORE_RULES' });
+    if (response?.success && Array.isArray(response.rules)) {
+      ignoreRulesCache = response.rules as IgnoreRuleDto[];
+      renderIgnoreRulesList();
+    } else {
+      ignoreRulesCache = [];
+      renderIgnoreRulesList();
+      const message = response?.error || '無視URLルールの取得に失敗しました';
+      showIgnoreRuleError(message);
+    }
+  } catch (error) {
+    console.error('Failed to load ignore rules', error);
+    ignoreRulesCache = [];
+    renderIgnoreRulesList();
+    showIgnoreRuleError('無視URLルールの取得に失敗しました');
+  }
+}
+
+function renderIgnoreRulesList(): void {
+  const list = document.getElementById('ignore-rules-list');
+  const countLabel = document.getElementById('ignore-rules-count');
+  if (!list) return;
+
+  // 既存子要素をクリア
+  list.replaceChildren();
+
+  if (countLabel) {
+    countLabel.textContent = `${ignoreRulesCache.length}件`;
+  }
+
+  if (ignoreRulesCache.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'ignore-rules-empty';
+    empty.textContent = 'まだ無視URLルールはありません。上のフォームから追加してください。';
+    list.appendChild(empty);
+    return;
+  }
+
+  // 並び順: 作成日時降順
+  const sorted = [...ignoreRulesCache].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  );
+
+  for (const rule of sorted) {
+    list.appendChild(buildIgnoreRuleItem(rule));
+  }
+}
+
+function buildIgnoreRuleItem(rule: IgnoreRuleDto): HTMLLIElement {
+  const item = document.createElement('li');
+  item.className = 'ignore-rule-item';
+  if (!rule.enabled) item.classList.add('disabled');
+  item.dataset.ruleId = rule.id;
+
+  const header = document.createElement('div');
+  header.className = 'ignore-rule-item-header';
+
+  const titleBlock = document.createElement('div');
+  titleBlock.className = 'ignore-rule-item-title';
+
+  const labelEl = document.createElement('span');
+  labelEl.className = 'ignore-rule-item-label';
+  labelEl.textContent = rule.label && rule.label.length > 0
+    ? rule.label
+    : rule.pattern;
+  titleBlock.appendChild(labelEl);
+
+  const patternEl = document.createElement('span');
+  patternEl.className = 'ignore-rule-item-pattern';
+  patternEl.textContent = rule.pattern;
+  titleBlock.appendChild(patternEl);
+
+  header.appendChild(titleBlock);
+
+  const toggleWrap = document.createElement('label');
+  toggleWrap.className = 'ignore-rule-item-toggle';
+  const toggle = document.createElement('input');
+  toggle.type = 'checkbox';
+  toggle.checked = rule.enabled;
+  toggle.setAttribute('aria-label', '有効/無効を切替');
+  toggle.addEventListener('change', () => {
+    void onToggleIgnoreRule(rule.id, toggle.checked);
+  });
+  toggleWrap.appendChild(toggle);
+  header.appendChild(toggleWrap);
+
+  item.appendChild(header);
+
+  const flags = document.createElement('div');
+  flags.className = 'ignore-rule-item-flags';
+  if (rule.ignoreOnSave) {
+    const chip = document.createElement('span');
+    chip.className = 'ignore-rule-flag-chip flag-save';
+    chip.textContent = '保存しない';
+    flags.appendChild(chip);
+  }
+  if (rule.ignoreOnClose) {
+    const chip = document.createElement('span');
+    chip.className = 'ignore-rule-flag-chip flag-close';
+    chip.textContent = '閉じない';
+    flags.appendChild(chip);
+  }
+  if (rule.ignoreOnRestore) {
+    const chip = document.createElement('span');
+    chip.className = 'ignore-rule-flag-chip flag-restore';
+    chip.textContent = '復元しない';
+    flags.appendChild(chip);
+  }
+  item.appendChild(flags);
+
+  const actions = document.createElement('div');
+  actions.className = 'ignore-rule-item-actions';
+
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'ignore-rule-action-button danger';
+  removeButton.textContent = '削除';
+  removeButton.setAttribute('aria-label', '無視URLルールを削除');
+  removeButton.addEventListener('click', () => {
+    void onRemoveIgnoreRule(rule.id);
+  });
+  actions.appendChild(removeButton);
+
+  item.appendChild(actions);
+
+  return item;
+}
+
+function showIgnoreRuleError(message: string): void {
+  const error = document.getElementById('ignore-rule-error');
+  if (!error) return;
+  error.textContent = message;
+  error.style.display = 'block';
+}
+
+function clearIgnoreRuleError(): void {
+  const error = document.getElementById('ignore-rule-error');
+  if (!error) return;
+  error.textContent = '';
+  error.style.display = 'none';
+}
+
+async function onAddIgnoreRule(event: Event): Promise<void> {
+  event.preventDefault();
+  clearIgnoreRuleError();
+
+  const patternInput = document.getElementById('ignore-rule-pattern') as HTMLInputElement | null;
+  const labelInput = document.getElementById('ignore-rule-label') as HTMLInputElement | null;
+  const onSaveInput = document.getElementById('ignore-rule-on-save') as HTMLInputElement | null;
+  const onCloseInput = document.getElementById('ignore-rule-on-close') as HTMLInputElement | null;
+  const onRestoreInput = document.getElementById('ignore-rule-on-restore') as HTMLInputElement | null;
+
+  const pattern = patternInput?.value.trim() ?? '';
+  const label = labelInput?.value.trim() ?? '';
+  const ignoreOnSave = !!onSaveInput?.checked;
+  const ignoreOnClose = !!onCloseInput?.checked;
+  const ignoreOnRestore = !!onRestoreInput?.checked;
+
+  if (pattern.length === 0) {
+    showIgnoreRuleError('URLパターンを入力してください');
+    return;
+  }
+  if (!ignoreOnSave && !ignoreOnClose && !ignoreOnRestore) {
+    showIgnoreRuleError('少なくとも1つの「無視する動作」を選択してください');
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'ADD_IGNORE_RULE',
+      payload: {
+        pattern,
+        label: label.length > 0 ? label : undefined,
+        ignoreOnSave,
+        ignoreOnClose,
+        ignoreOnRestore,
+      },
+    });
+
+    if (!response?.success) {
+      showIgnoreRuleError(response?.error || '追加に失敗しました');
+      return;
+    }
+
+    if (patternInput) patternInput.value = '';
+    if (labelInput) labelInput.value = '';
+    if (onSaveInput) onSaveInput.checked = false;
+    if (onCloseInput) onCloseInput.checked = false;
+    if (onRestoreInput) onRestoreInput.checked = false;
+
+    await loadIgnoreRules();
+    toastManager.show({
+      message: '無視URLルールを追加しました',
+      type: 'success',
+    });
+  } catch (error) {
+    console.error('Failed to add ignore rule', error);
+    showIgnoreRuleError('追加処理でエラーが発生しました');
+  }
+}
+
+async function onToggleIgnoreRule(id: string, enabled: boolean): Promise<void> {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'UPDATE_IGNORE_RULE',
+      payload: { id, patch: { enabled } },
+    });
+    if (!response?.success) {
+      toastManager.show({
+        message: response?.error || '更新に失敗しました',
+        type: 'error',
+      });
+    }
+  } catch (error) {
+    console.error('Failed to toggle ignore rule', error);
+    toastManager.show({
+      message: '更新処理でエラーが発生しました',
+      type: 'error',
+    });
+  } finally {
+    await loadIgnoreRules();
+  }
+}
+
+async function onRemoveIgnoreRule(id: string): Promise<void> {
+  if (!window.confirm('この無視URLルールを削除しますか？')) {
+    return;
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'REMOVE_IGNORE_RULE',
+      payload: { id },
+    });
+    if (!response?.success) {
+      toastManager.show({
+        message: response?.error || '削除に失敗しました',
+        type: 'error',
+      });
+      return;
+    }
+    toastManager.show({
+      message: '無視URLルールを削除しました',
+      type: 'success',
+    });
+  } catch (error) {
+    console.error('Failed to remove ignore rule', error);
+    toastManager.show({
+      message: '削除処理でエラーが発生しました',
+      type: 'error',
+    });
+  } finally {
+    await loadIgnoreRules();
+  }
+}
+
+document.getElementById('ignore-rule-add-form')?.addEventListener('submit', onAddIgnoreRule);
 
 // 初期化
 checkAuthStatus();
