@@ -5,6 +5,10 @@ import { ChromeTabsAdapter } from '../../infrastructure/adapters/chrome-tabs-ada
 import { ChromeWindowsAdapter } from '../../infrastructure/adapters/chrome-windows-adapter';
 import { Logger } from '../../infrastructure/adapters/logger';
 import { EventHandler } from '../handlers/event-handler';
+import {
+  CapturedTabEntry,
+  extractTabsFromEntries,
+} from '../types/captured-tab-entry';
 
 /**
  * TabCaptureService
@@ -98,6 +102,65 @@ export class TabCaptureService {
   }
 
   /**
+   * すべてのChromeウィンドウのタブエントリを取得（表示・保存用）
+   * タブの順序はウィンドウID昇順・同一ウィンドウ内はindex昇順。
+   */
+  async getAllWindowsTabEntries(): Promise<CapturedTabEntry[]> {
+    try {
+      const startTime = Date.now();
+      const chromeTabs = await this.tabsAdapter.getAllTabs();
+      const entries: CapturedTabEntry[] = [];
+
+      for (const chromeTab of chromeTabs) {
+        if (chromeTab.id === undefined) {
+          continue;
+        }
+
+        let tabInfo: TabInfo | null = null;
+        try {
+          tabInfo = TabInfoFactory.createFromChromeTab(chromeTab);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(
+            `Failed to create TabInfo from Chrome Tab ${chromeTab.id}: ${errorMessage}`
+          );
+        }
+
+        entries.push({
+          tabId: chromeTab.id,
+          windowId: chromeTab.windowId ?? 0,
+          url: chromeTab.url ?? '',
+          title: chromeTab.title?.trim() || chromeTab.url || 'Untitled',
+          faviconUrl: chromeTab.favIconUrl,
+          index: chromeTab.index ?? 0,
+          tabInfo,
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      this.logger.info(`Captured ${entries.length} tab entries from all windows in ${duration}ms`);
+
+      const tabInfos = entries
+        .map((entry) => entry.tabInfo)
+        .filter((tabInfo): tabInfo is TabInfo => tabInfo !== null);
+
+      if (tabInfos.length > 0) {
+        const event = new TabsCaptured(tabInfos, 0, new Date());
+        await this.eventHandler.handleTabsCaptured(event);
+      }
+
+      return entries;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to get all windows tab entries: ${errorMessage}`,
+        error instanceof Error ? error : new Error(errorMessage)
+      );
+      throw error;
+    }
+  }
+
+  /**
    * すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
    * タブの順序はウィンドウID昇順・同一ウィンドウ内はindex昇順。
    * @returns タブ情報の配列、タブIDの配列、（tabId, url）ペア配列
@@ -110,43 +173,13 @@ export class TabCaptureService {
     tabIds: number[];
     tabIdUrlPairs: Array<{ tabId: number; url: string }>;
   }> {
-    try {
-      const startTime = Date.now();
-
-      const chromeTabs = await this.tabsAdapter.getAllTabs();
-
-      const tabInfos: TabInfo[] = [];
-      const tabIds: number[] = [];
-      const tabIdUrlPairs: Array<{ tabId: number; url: string }> = [];
-
-      for (const chromeTab of chromeTabs) {
-        if (chromeTab.id !== undefined) {
-          tabIds.push(chromeTab.id);
-          tabIdUrlPairs.push({ tabId: chromeTab.id, url: chromeTab.url ?? '' });
-        }
-        try {
-          const tabInfo = TabInfoFactory.createFromChromeTab(chromeTab);
-          tabInfos.push(tabInfo);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.warn(`Failed to create TabInfo from Chrome Tab ${chromeTab.id}: ${errorMessage}`);
-        }
-      }
-
-      const duration = Date.now() - startTime;
-      this.logger.info(`Captured ${tabInfos.length} tabs from all windows in ${duration}ms`);
-
-      if (tabInfos.length > 0) {
-        const event = new TabsCaptured(tabInfos, 0, new Date());
-        await this.eventHandler.handleTabsCaptured(event);
-      }
-
-      return { tabs: tabInfos, tabIds, tabIdUrlPairs };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to get all windows tabs: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
-      throw error;
-    }
+    const entries = await this.getAllWindowsTabEntries();
+    const { tabs, tabIdUrlPairs } = extractTabsFromEntries(entries);
+    return {
+      tabs,
+      tabIds: tabIdUrlPairs.map((pair) => pair.tabId),
+      tabIdUrlPairs,
+    };
   }
 
   /**

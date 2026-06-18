@@ -308,6 +308,39 @@ describe('TabCaptureService', () => {
     });
   });
 
+  describe('getAllWindowsTabEntries', () => {
+    it('should return tab entries with tabId and windowId', async () => {
+      const chromeTabs = [
+        { id: 1, windowId: 100, url: 'https://example.com', title: 'Example', index: 0 },
+        { id: 2, windowId: 200, url: 'https://other.com', title: 'Other', index: 0 },
+      ] as unknown as chrome.tabs.Tab[];
+
+      tabsAdapter.getAllTabs.mockResolvedValue(chromeTabs);
+
+      const result = await service.getAllWindowsTabEntries();
+
+      expect(result).toHaveLength(2);
+      expect(result[0].tabId).toBe(1);
+      expect(result[0].windowId).toBe(100);
+      expect(result[0].tabInfo).toBeInstanceOf(TabInfo);
+      expect(result[1].windowId).toBe(200);
+    });
+
+    it('should include entries even when TabInfo creation fails', async () => {
+      const chromeTabs = [
+        { id: 1, windowId: 100, url: 'invalid-url', title: 'Invalid', index: 0 },
+      ] as unknown as chrome.tabs.Tab[];
+
+      tabsAdapter.getAllTabs.mockResolvedValue(chromeTabs);
+
+      const result = await service.getAllWindowsTabEntries();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].tabInfo).toBeNull();
+      expect(result[0].url).toBe('invalid-url');
+    });
+  });
+
   describe('getAllWindowsTabs', () => {
     it('should get all windows tabs and return tabs with tabIds', async () => {
       const chromeTabs = [
@@ -347,7 +380,7 @@ describe('TabCaptureService', () => {
       tabsAdapter.getAllTabs.mockRejectedValue(new Error('Failed to get tabs'));
 
       await expect(service.getAllWindowsTabs()).rejects.toThrow('Failed to get tabs');
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to get all windows tabs'), expect.any(Error));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to get all windows tab entries'), expect.any(Error));
     });
   });
 

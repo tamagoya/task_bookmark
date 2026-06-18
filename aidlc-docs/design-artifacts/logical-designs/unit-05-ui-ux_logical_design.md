@@ -46,19 +46,24 @@
 ---
 
 #### Tab List Component
-**責任**: 現在のタブ一覧の表示
+**責任**: 現在のタブ一覧の表示と保存対象の選択
 
 **主要機能**:
 - タブ一覧の表示（タイトル、URL、ファビコン）
+- ウィンドウ単位のグループ表示と一括選択チェックボックス
+- 各タブの選択チェックボックス（保存・閉じる対象の指定）
+- タブ一覧の手動更新ボタン（refresh-tabs-button）
+- 選択中件数／全体件数の表示（例: 2/5）
 - タブの順序表示
 - スクロール可能なリスト
 
 **実装ファイル**:
 - `FRONTEND/sidepanel/sidepanel.html` (tabs-section)
-- `FRONTEND/sidepanel/sidepanel.ts` (loadCurrentTabs, renderTabsList)
+- `FRONTEND/sidepanel/sidepanel.ts` (loadCurrentTabs, renderTabsList, selectedTabIds)
 
 **依存関係**:
-- Application Layer (TabCaptureService)
+- Application Layer (TabCaptureService / getAllWindowsTabEntries)
+- Service Worker (GET_CURRENT_TABS, SAVE_WORK_STATE with selectedTabIds)
 
 ---
 

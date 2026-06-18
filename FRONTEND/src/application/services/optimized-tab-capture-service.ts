@@ -4,6 +4,7 @@ import { CacheStrategy } from '../../domain/value-objects/cache-strategy';
 import { ChromeWindowsAdapter } from '../../infrastructure/adapters/chrome-windows-adapter';
 import { PerformanceInterceptor } from '../decorators/performance-interceptor';
 import { CacheDecorator } from '../decorators/cache-decorator';
+import { CapturedTabEntry } from '../types/captured-tab-entry';
 
 /**
  * OptimizedTabCaptureService
@@ -74,6 +75,16 @@ export class OptimizedTabCaptureService {
    */
   async getFaviconUrl(tabId: number): Promise<string | undefined> {
     return this.baseService.getFaviconUrl(tabId);
+  }
+
+  /**
+   * すべてのChromeウィンドウのタブエントリを取得（表示・保存用）
+   */
+  async getAllWindowsTabEntries(): Promise<CapturedTabEntry[]> {
+    return this.performanceInterceptor.intercept(
+      'getAllWindowsTabEntries',
+      () => this.baseService.getAllWindowsTabEntries()
+    );
   }
 
   /**

@@ -21,6 +21,10 @@ import { OptimizedServiceFactory } from '../src/application/factories/optimized-
 // Unit-7: 無視URL設定
 import { ChromeStorageIgnoreRulesRepository } from '../src/infrastructure/repositories/chrome-storage-ignore-rules-repository';
 import { IgnoreRulesService } from '../src/application/services/ignore-rules-service';
+import {
+  extractTabsFromEntries,
+  filterEntriesBySelectedTabIds,
+} from '../src/application/types/captured-tab-entry';
 
 // 依存関係の初期化
 const identityAdapter = new ChromeIdentityAdapter();
@@ -122,15 +126,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'GET_CURRENT_TABS':
           try {
-            // 全ウィンドウのタブを取得（一覧表示・保存対象）
-            const { tabs: allTabs } = await optimizedTabCaptureService.getAllWindowsTabs();
+            const tabEntries = await optimizedTabCaptureService.getAllWindowsTabEntries();
             sendResponse({
               success: true,
-              tabs: allTabs.map(tab => ({
-                url: tab.url,
-                title: tab.title,
-                faviconUrl: tab.faviconUrl,
-                index: tab.index,
+              tabs: tabEntries.map((entry) => ({
+                tabId: entry.tabId,
+                windowId: entry.windowId,
+                url: entry.url,
+                title: entry.title,
+                faviconUrl: entry.faviconUrl,
+                index: entry.index,
               })),
             });
           } catch (error) {
@@ -143,7 +148,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         case 'SAVE_WORK_STATE':
           try {
-            const { title, memo } = message.payload as { title: string; memo?: string };
+            const { title, memo, selectedTabIds } = message.payload as {
+              title: string;
+              memo?: string;
+              selectedTabIds?: number[];
+            };
             
             // バリデーション
             if (!title || title.trim().length === 0) {
@@ -159,7 +168,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             }
 
             // タブ情報を取得（全ウィンドウ、Bolt 10: パフォーマンス最適化）
-            const { tabs, tabIdUrlPairs } = await optimizedTabCaptureService.getAllWindowsTabs();
+            const allTabEntries = await optimizedTabCaptureService.getAllWindowsTabEntries();
+            const selectedEntries = filterEntriesBySelectedTabIds(allTabEntries, selectedTabIds);
+
+            if (selectedTabIds !== undefined && selectedTabIds.length === 0) {
+              sendResponse({ success: false, error: '保存するタブが選択されていません' });
+              break;
+            }
+
+            if (selectedEntries.length === 0) {
+              sendResponse({ success: false, error: 'No tabs to save' });
+              break;
+            }
+
+            const { tabs, tabIdUrlPairs } = extractTabsFromEntries(selectedEntries);
             if (tabs.length === 0) {
               sendResponse({ success: false, error: 'No tabs to save' });
               break;

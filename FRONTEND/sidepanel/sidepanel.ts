@@ -107,6 +107,223 @@ class ToastManager {
 
 const toastManager = new ToastManager();
 
+interface DisplayTab {
+  tabId: number;
+  windowId: number;
+  url: string;
+  title: string;
+  faviconUrl?: string;
+  index: number;
+}
+
+let currentDisplayTabs: DisplayTab[] = [];
+let selectedTabIds = new Set<number>();
+
+const DEFAULT_FAVICON =
+  'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="%23ccc"/></svg>';
+
+function updateTabCountDisplay(): void {
+  const tabCount = document.getElementById('tab-count');
+  const tabSelectedCount = document.getElementById('tab-selected-count');
+  if (tabCount) {
+    tabCount.textContent = currentDisplayTabs.length.toString();
+  }
+  if (tabSelectedCount) {
+    tabSelectedCount.textContent = selectedTabIds.size.toString();
+  }
+}
+
+function groupTabsByWindow(tabs: DisplayTab[]): Map<number, DisplayTab[]> {
+  const groups = new Map<number, DisplayTab[]>();
+  for (const tab of tabs) {
+    const windowTabs = groups.get(tab.windowId) ?? [];
+    windowTabs.push(tab);
+    groups.set(tab.windowId, windowTabs);
+  }
+  return groups;
+}
+
+function getWindowLabel(windowIndex: number, tabCount: number): string {
+  return `ウィンドウ ${windowIndex + 1} (${tabCount})`;
+}
+
+function updateWindowCheckboxState(windowId: number): void {
+  const windowCheckbox = document.querySelector<HTMLInputElement>(
+    `.window-select-checkbox[data-window-id="${windowId}"]`
+  );
+  if (!windowCheckbox) {
+    return;
+  }
+
+  const windowTabs = currentDisplayTabs.filter((tab) => tab.windowId === windowId);
+  const selectedInWindow = windowTabs.filter((tab) => selectedTabIds.has(tab.tabId)).length;
+
+  if (selectedInWindow === 0) {
+    windowCheckbox.checked = false;
+    windowCheckbox.indeterminate = false;
+  } else if (selectedInWindow === windowTabs.length) {
+    windowCheckbox.checked = true;
+    windowCheckbox.indeterminate = false;
+  } else {
+    windowCheckbox.checked = false;
+    windowCheckbox.indeterminate = true;
+  }
+}
+
+function createFaviconElement(faviconUrl?: string): HTMLImageElement {
+  const favicon = document.createElement('img');
+  favicon.className = 'favicon';
+  favicon.src = faviconUrl || DEFAULT_FAVICON;
+  favicon.alt = '';
+  favicon.onerror = () => {
+    favicon.src = DEFAULT_FAVICON;
+  };
+  return favicon;
+}
+
+function createTabItemElement(tab: DisplayTab): HTMLElement {
+  const tabItem = document.createElement('div');
+  tabItem.className = 'tab-item';
+  if (!selectedTabIds.has(tab.tabId)) {
+    tabItem.classList.add('tab-item-unselected');
+  }
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'tab-select-checkbox';
+  checkbox.checked = selectedTabIds.has(tab.tabId);
+  checkbox.setAttribute('data-tab-id', tab.tabId.toString());
+  checkbox.setAttribute('aria-label', `${tab.title} を保存対象に含める`);
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) {
+      selectedTabIds.add(tab.tabId);
+      tabItem.classList.remove('tab-item-unselected');
+    } else {
+      selectedTabIds.delete(tab.tabId);
+      tabItem.classList.add('tab-item-unselected');
+    }
+    updateTabCountDisplay();
+    updateWindowCheckboxState(tab.windowId);
+  });
+
+  const tabInfo = document.createElement('div');
+  tabInfo.className = 'tab-info';
+
+  const tabTitle = document.createElement('div');
+  tabTitle.className = 'tab-title';
+  tabTitle.textContent = tab.title || tab.url;
+
+  const tabUrl = document.createElement('div');
+  tabUrl.className = 'tab-url';
+  tabUrl.textContent = tab.url;
+
+  tabInfo.appendChild(tabTitle);
+  tabInfo.appendChild(tabUrl);
+  tabItem.appendChild(checkbox);
+  tabItem.appendChild(createFaviconElement(tab.faviconUrl));
+  tabItem.appendChild(tabInfo);
+
+  return tabItem;
+}
+
+function renderTabsList(): void {
+  const tabsList = document.getElementById('tabs-list');
+  if (!tabsList) {
+    return;
+  }
+
+  while (tabsList.firstChild) {
+    tabsList.removeChild(tabsList.firstChild);
+  }
+
+  if (currentDisplayTabs.length === 0) {
+    const emptyMessage = document.createElement('div');
+    emptyMessage.className = 'tab-item';
+    emptyMessage.textContent = '開いているタブがありません';
+    tabsList.appendChild(emptyMessage);
+    updateTabCountDisplay();
+    return;
+  }
+
+  const windowGroups = groupTabsByWindow(currentDisplayTabs);
+  const sortedWindowIds = [...windowGroups.keys()].sort((a, b) => a - b);
+
+  sortedWindowIds.forEach((windowId, windowIndex) => {
+    const windowTabs = windowGroups.get(windowId) ?? [];
+    const windowGroup = document.createElement('div');
+    windowGroup.className = 'window-group';
+
+    const windowHeader = document.createElement('div');
+    windowHeader.className = 'window-group-header';
+
+    const windowCheckbox = document.createElement('input');
+    windowCheckbox.type = 'checkbox';
+    windowCheckbox.className = 'window-select-checkbox';
+    windowCheckbox.setAttribute('data-window-id', windowId.toString());
+    windowCheckbox.setAttribute(
+      'aria-label',
+      `${getWindowLabel(windowIndex, windowTabs.length)} を一括選択`
+    );
+
+    const selectedInWindow = windowTabs.filter((tab) => selectedTabIds.has(tab.tabId)).length;
+    windowCheckbox.checked = selectedInWindow === windowTabs.length && windowTabs.length > 0;
+    windowCheckbox.indeterminate =
+      selectedInWindow > 0 && selectedInWindow < windowTabs.length;
+
+    windowCheckbox.addEventListener('change', () => {
+      if (windowCheckbox.checked) {
+        windowTabs.forEach((tab) => selectedTabIds.add(tab.tabId));
+      } else {
+        windowTabs.forEach((tab) => selectedTabIds.delete(tab.tabId));
+      }
+      renderTabsList();
+    });
+
+    const windowTitle = document.createElement('span');
+    windowTitle.className = 'window-group-title';
+    windowTitle.textContent = getWindowLabel(windowIndex, windowTabs.length);
+
+    windowHeader.appendChild(windowCheckbox);
+    windowHeader.appendChild(windowTitle);
+    windowGroup.appendChild(windowHeader);
+
+    windowTabs.forEach((tab) => {
+      windowGroup.appendChild(createTabItemElement(tab));
+    });
+
+    tabsList.appendChild(windowGroup);
+  });
+
+  updateTabCountDisplay();
+}
+
+function mergeTabSelection(
+  tabs: DisplayTab[],
+  previousSelection: Set<number>,
+  preserveSelection: boolean
+): Set<number> {
+  const nextSelection = new Set<number>();
+  const previousTabIds = new Set(currentDisplayTabs.map((tab) => tab.tabId));
+
+  if (!preserveSelection || currentDisplayTabs.length === 0) {
+    tabs.forEach((tab) => nextSelection.add(tab.tabId));
+    return nextSelection;
+  }
+
+  for (const tab of tabs) {
+    const existedBefore = previousTabIds.has(tab.tabId);
+    if (!existedBefore || previousSelection.has(tab.tabId)) {
+      nextSelection.add(tab.tabId);
+    }
+  }
+
+  return nextSelection;
+}
+
+function getSelectedTabsForSave(): DisplayTab[] {
+  return currentDisplayTabs.filter((tab) => selectedTabIds.has(tab.tabId));
+}
+
 // プログレスバーの更新
 function updateRestoreProgress(current: number, total: number): void {
   const progressContainer = document.getElementById('restore-progress');
@@ -239,66 +456,55 @@ document.getElementById('logout-button')?.addEventListener('click', async () => 
 });
 
 // タブ一覧の読み込み
-async function loadCurrentTabs(): Promise<void> {
+async function loadCurrentTabs(options?: { preserveSelection?: boolean }): Promise<void> {
   const tabsSection = document.getElementById('tabs-section');
-  const tabsList = document.getElementById('tabs-list');
-  const tabCount = document.getElementById('tab-count');
+  const refreshButton = document.getElementById('refresh-tabs-button') as HTMLButtonElement | null;
+  const previousSelection = options?.preserveSelection ? new Set(selectedTabIds) : new Set<number>();
+
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.classList.add('loading');
+  }
 
   try {
     const response = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_TABS' });
     if (response.success && response.tabs) {
-      const tabs = response.tabs as Array<{ url: string; title: string; faviconUrl?: string; index: number }>;
-      
-      if (tabCount) {
-        tabCount.textContent = tabs.length.toString();
-      }
-
-      if (tabsList) {
-        // XSS対策: innerHTMLの代わりにDOM操作でクリア
-        while (tabsList.firstChild) {
-          tabsList.removeChild(tabsList.firstChild);
-        }
-        tabs.forEach((tab) => {
-          const tabItem = document.createElement('div');
-          tabItem.className = 'tab-item';
-          
-          const favicon = document.createElement('img');
-          favicon.className = 'favicon';
-          favicon.src = tab.faviconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="%23ccc"/></svg>';
-          favicon.alt = '';
-          favicon.onerror = () => {
-            favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="%23ccc"/></svg>';
-          };
-
-          const tabInfo = document.createElement('div');
-          tabInfo.className = 'tab-info';
-          
-          const tabTitle = document.createElement('div');
-          tabTitle.className = 'tab-title';
-          tabTitle.textContent = tab.title || tab.url;
-          
-          const tabUrl = document.createElement('div');
-          tabUrl.className = 'tab-url';
-          tabUrl.textContent = tab.url;
-
-          tabInfo.appendChild(tabTitle);
-          tabInfo.appendChild(tabUrl);
-          tabItem.appendChild(favicon);
-          tabItem.appendChild(tabInfo);
-          tabsList.appendChild(tabItem);
-        });
-      }
+      const tabs = response.tabs as DisplayTab[];
+      currentDisplayTabs = tabs;
+      selectedTabIds = mergeTabSelection(
+        tabs,
+        previousSelection,
+        options?.preserveSelection === true
+      );
+      renderTabsList();
 
       if (tabsSection) {
         tabsSection.style.display = 'block';
       }
     } else {
       console.error('Failed to load tabs:', response.error);
+      toastManager.show({
+        message: 'タブ一覧の取得に失敗しました',
+        type: 'error',
+      });
     }
   } catch (error) {
     console.error('Failed to load tabs:', error);
+    toastManager.show({
+      message: 'タブ一覧の取得に失敗しました',
+      type: 'error',
+    });
+  } finally {
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.classList.remove('loading');
+    }
   }
 }
+
+document.getElementById('refresh-tabs-button')?.addEventListener('click', async () => {
+  await loadCurrentTabs({ preserveSelection: true });
+});
 
 // 保存フォームの送信
 async function saveWorkState(event: Event): Promise<void> {
@@ -320,14 +526,17 @@ async function saveWorkState(event: Event): Promise<void> {
     return;
   }
 
+  const selectedTabs = getSelectedTabsForSave();
+  if (selectedTabs.length === 0) {
+    showMessage('保存するタブを1つ以上選択してください', 'warning');
+    return;
+  }
+
   // 機密情報を含むURLの警告
   try {
-    const tabsResponse = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_TABS' });
-    if (tabsResponse.success && tabsResponse.tabs) {
-      const tabs = tabsResponse.tabs as Array<{ url: string; title: string }>;
-      if (checkSensitiveUrlsInTabs(tabs)) {
+    if (checkSensitiveUrlsInTabs(selectedTabs)) {
         const confirmed = confirm(
-          '警告: 現在開いているタブには、機密情報（トークン、パスワードなど）を含む可能性のあるURLがあります。\n\n' +
+          '警告: 選択したタブには、機密情報（トークン、パスワードなど）を含む可能性のあるURLがあります。\n\n' +
           'これらのURLはGoogleカレンダーに保存されます。\n' +
           '保存後にURL編集機能で削除または編集することもできます。\n\n' +
           '本当に保存しますか？'
@@ -339,7 +548,6 @@ async function saveWorkState(event: Event): Promise<void> {
           }
           return;
         }
-      }
     }
   } catch (error) {
     console.error('Failed to check sensitive URLs:', error);
@@ -360,7 +568,11 @@ async function saveWorkState(event: Event): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'SAVE_WORK_STATE',
-      payload: { title, memo: memo || undefined },
+      payload: {
+        title,
+        memo: memo || undefined,
+        selectedTabIds: [...selectedTabIds],
+      },
     });
 
     if (response.success) {

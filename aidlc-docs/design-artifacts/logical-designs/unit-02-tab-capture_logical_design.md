@@ -50,6 +50,11 @@
   - 依存関係: Infrastructure Layer (ChromeTabsAdapter, ChromeWindowsAdapter)
   - パフォーマンス要件: 最大20タブの取得を500ms以内で完了（NFR-001）
 
+- `getAllWindowsTabEntries(): Promise<CapturedTabEntry[]>`
+  - すべてのChromeウィンドウのタブエントリを取得（tabId, windowId, TabInfo を含む）
+  - 表示用 API（GET_CURRENT_TABS）と保存時フィルタの共通データ源
+  - 依存関係: Infrastructure Layer (ChromeTabsAdapter)
+
 - `getAllWindowsTabs(): Promise<TabInfo[]>`
   - すべてのChromeウィンドウのタブ情報を取得（保存・一覧表示用）
   - 依存関係: Infrastructure Layer (ChromeTabsAdapter)
@@ -78,9 +83,10 @@
 - 新規ウィンドウ作成: ChromeWindowsAdapter.createWindow(['about:newtab']) を呼び出し、新しいタブを1つだけ開いたウィンドウを表示する（保存成功後に Service Worker から実行）
 
 **無視URL設定との連携（2026-05-28 追加、Unit-7）**:
-- Service Worker の `SAVE_WORK_STATE` ハンドラ内で、TabCaptureService が直接判定するのではなく、Unit-7 の `IgnoreRulesService` を呼び出してフィルタを適用する
+- Service Worker の `SAVE_WORK_STATE` ハンドラ内で、Unit-7 の `IgnoreRulesService` を呼び出してフィルタを適用する
+- **ユーザー選択との連携（2026-06-18 追加）**: `filterEntriesBySelectedTabIds(entries, selectedTabIds)` を先に適用し、その後 ignoreOnSave / ignoreOnClose を適用
 - 保存対象フィルタ: `IgnoreRulesService.filterTabsForSave(tabs)` で `ignoreOnSave=true` のタブを除外
-- 閉じる対象フィルタ: 保存対象とは独立に `tabs` 全体に対して `IgnoreRulesService.filterTabIdsForClose(tabs)` を適用し、`ignoreOnClose=true` のタブIDを除外したID集合を `closeAllCapturedTabs(...)` に渡す
+- 閉じる対象フィルタ: 選択済みタブに対して `IgnoreRulesService.filterTabIdsForClose(tabIdUrlPairs)` を適用
 - ルール未登録時はフィルタが空集合を返し、従来挙動と完全に一致する
 
 **依存関係**:
